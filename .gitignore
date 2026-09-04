@@ -1,0 +1,11 @@
+# Production values and credentials belong in Coolify, never Git.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Local validation output.
+*.log

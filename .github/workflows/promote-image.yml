@@ -1,0 +1,334 @@
+name: Promote immutable image
+
+on:
+  repository_dispatch:
+    types: [image_published]
+  workflow_dispatch:
+    inputs:
+      service:
+        description: Service to promote
+        required: true
+        type: choice
+        options: [api, admin, client]
+      source_repository:
+        description: GitHub owner/repository that produced the image
+        required: true
+        type: string
+      source_sha:
+        description: Full 40-character source commit SHA
+        required: true
+        type: string
+      source_run_number:
+        description: Monotonically increasing source workflow run number
+        required: true
+        type: string
+      tag:
+        description: Immutable sha-<commit> image tag
+        required: true
+        type: string
+      migrations_changed:
+        description: Gate the API release behind a migration pull request
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: arz-neshan-production-image-promotions
+  queue: max
+
+jobs:
+  promote:
+    name: Validate and record release
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          ref: main
+
+      - name: Normalize and validate payload
+        id: payload
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          MANUAL_SERVICE: ${{ inputs.service }}
+          MANUAL_SOURCE_REPOSITORY: ${{ inputs.source_repository }}
+          MANUAL_SOURCE_SHA: ${{ inputs.source_sha }}
+          MANUAL_SOURCE_RUN_NUMBER: ${{ inputs.source_run_number }}
+          MANUAL_TAG: ${{ inputs.tag }}
+          MANUAL_MIGRATIONS_CHANGED: ${{ inputs.migrations_changed }}
+        run: |
+          set -euo pipefail
+
+          if [[ "$EVENT_NAME" == "repository_dispatch" ]]; then
+            service="$(jq -r '.client_payload.service // empty' "$GITHUB_EVENT_PATH")"
+            source_repository="$(jq -r '.client_payload.source_repository // empty' "$GITHUB_EVENT_PATH")"
+            source_sha="$(jq -r '.client_payload.source_sha // empty' "$GITHUB_EVENT_PATH")"
+            source_run_number="$(jq -r '.client_payload.source_run_number // empty' "$GITHUB_EVENT_PATH")"
+            tag="$(jq -r '.client_payload.tag // empty' "$GITHUB_EVENT_PATH")"
+            migrations_changed="$(jq -r '
+              .client_payload.migrations_changed |
+              if . == true then "true" elif . == false then "false" else empty end
+            ' "$GITHUB_EVENT_PATH")"
+          else
+            service="$MANUAL_SERVICE"
+            source_repository="$MANUAL_SOURCE_REPOSITORY"
+            source_sha="$MANUAL_SOURCE_SHA"
+            source_run_number="$MANUAL_SOURCE_RUN_NUMBER"
+            tag="$MANUAL_TAG"
+            migrations_changed="${MANUAL_MIGRATIONS_CHANGED,,}"
+          fi
+
+          case "${service}:${source_repository}" in
+            api:mohsen-amani/arz-neshan-api)
+              image="regi.mohsenamani.com/arz-neshan-infra/api:${tag}"
+              ;;
+            admin:mohsen-amani/arz-neshan-admin)
+              image="regi.mohsenamani.com/arz-neshan-infra/admin:${tag}"
+              ;;
+            client:mohsen-amani/arz-neshan-client)
+              image="regi.mohsenamani.com/arz-neshan-infra/client:${tag}"
+              ;;
+            *)
+              echo "::error::The service/source repository mapping is not allowed."
+              exit 1
+              ;;
+          esac
+
+          if [[ ! "$source_sha" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::source_sha must be a lowercase, full Git commit SHA."
+            exit 1
+          fi
+
+          if [[ "$tag" != "sha-${source_sha}" ]]; then
+            echo "::error::tag must equal sha-<source_sha>."
+            exit 1
+          fi
+
+          if [[ ! "$source_run_number" =~ ^[1-9][0-9]*$ ]]; then
+            echo "::error::source_run_number must be a positive integer."
+            exit 1
+          fi
+
+          if [[ "$migrations_changed" != "true" && "$migrations_changed" != "false" ]]; then
+            echo "::error::migrations_changed must be a boolean."
+            exit 1
+          fi
+
+          if [[ "$service" != "api" && "$migrations_changed" == "true" ]]; then
+            echo "::error::Only API releases may declare database migrations."
+            exit 1
+          fi
+
+          {
+            echo "service=$service"
+            echo "source_repository=$source_repository"
+            echo "source_sha=$source_sha"
+            echo "source_run_number=$source_run_number"
+            echo "tag=$tag"
+            echo "image=$image"
+            echo "migrations_changed=$migrations_changed"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Select promotion branch
+        id: route
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SERVICE: ${{ steps.payload.outputs.service }}
+          SOURCE_RUN_NUMBER: ${{ steps.payload.outputs.source_run_number }}
+          MIGRATIONS_CHANGED: ${{ steps.payload.outputs.migrations_changed }}
+        run: |
+          set -euo pipefail
+
+          mode=direct
+          branch=main
+          existing_pull_request=false
+          pull_request_number=
+
+          if [[ "$SERVICE" == "api" ]]; then
+            pull_request_number="$(gh pr list \
+              --repo "$GITHUB_REPOSITORY" \
+              --state open \
+              --limit 100 \
+              --json number,title \
+              --jq '[.[] | select(.title | startswith("deploy(api): migration-gated release"))][0].number // empty')"
+
+            if [[ -n "$pull_request_number" ]]; then
+              branch="$(gh pr view "$pull_request_number" \
+                --repo "$GITHUB_REPOSITORY" \
+                --json headRefName \
+                --jq '.headRefName')"
+              mode=pull-request
+              existing_pull_request=true
+            elif [[ "$MIGRATIONS_CHANGED" == "true" ]]; then
+              branch="automation/api-migration-${SOURCE_RUN_NUMBER}"
+              mode=pull-request
+            fi
+          fi
+
+          if [[ "$mode" == "pull-request" ]]; then
+            if git ls-remote --exit-code --heads origin "$branch" >/dev/null 2>&1; then
+              git fetch origin "$branch"
+              git checkout -B "$branch" FETCH_HEAD
+            else
+              git checkout -b "$branch"
+            fi
+          fi
+
+          {
+            echo "mode=$mode"
+            echo "branch=$branch"
+            echo "existing_pull_request=$existing_pull_request"
+            echo "pull_request_number=$pull_request_number"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Reject stale or duplicate promotion
+        id: freshness
+        shell: bash
+        env:
+          SERVICE: ${{ steps.payload.outputs.service }}
+          SOURCE_SHA: ${{ steps.payload.outputs.source_sha }}
+          SOURCE_RUN_NUMBER: ${{ steps.payload.outputs.source_run_number }}
+          TAG: ${{ steps.payload.outputs.tag }}
+        run: |
+          set -euo pipefail
+
+          jq --exit-status --arg service "$SERVICE" '.[$service]' release-state.json >/dev/null
+          current_sha="$(jq -r --arg service "$SERVICE" '.[$service].source_sha' release-state.json)"
+          current_tag="$(jq -r --arg service "$SERVICE" '.[$service].tag' release-state.json)"
+          current_run_number="$(jq -r --arg service "$SERVICE" '.[$service].source_run_number' release-state.json)"
+
+          if [[ "$current_sha" == "$SOURCE_SHA" && "$current_tag" == "$TAG" ]]; then
+            echo "Promotion is already recorded."
+            echo "promote=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [[ ! "$current_run_number" =~ ^[0-9]+$ ]]; then
+            echo "::error::Stored source_run_number is invalid."
+            exit 1
+          fi
+
+          if (( SOURCE_RUN_NUMBER <= current_run_number )); then
+            echo "Ignoring stale source run ${SOURCE_RUN_NUMBER}; current run is ${current_run_number}."
+            echo "promote=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "promote=true" >> "$GITHUB_OUTPUT"
+
+      - name: Update non-API image
+        if: steps.freshness.outputs.promote == 'true' && steps.payload.outputs.service != 'api'
+        uses: mikefarah/yq@v4.53.2
+        env:
+          SERVICE: ${{ steps.payload.outputs.service }}
+          IMAGE: ${{ steps.payload.outputs.image }}
+        with:
+          cmd: yq -i '.services[strenv(SERVICE)].image = strenv(IMAGE)' compose.coolify.yml
+
+      - name: Update API and migration images
+        if: steps.freshness.outputs.promote == 'true' && steps.payload.outputs.service == 'api'
+        uses: mikefarah/yq@v4.53.2
+        env:
+          IMAGE: ${{ steps.payload.outputs.image }}
+        with:
+          cmd: yq -i '.services.api.image = strenv(IMAGE) | .services.migration.image = strenv(IMAGE)' compose.coolify.yml
+
+      - name: Update release metadata
+        if: steps.freshness.outputs.promote == 'true'
+        uses: mikefarah/yq@v4.53.2
+        env:
+          SERVICE: ${{ steps.payload.outputs.service }}
+          SOURCE_REPOSITORY: ${{ steps.payload.outputs.source_repository }}
+          SOURCE_SHA: ${{ steps.payload.outputs.source_sha }}
+          SOURCE_RUN_NUMBER: ${{ steps.payload.outputs.source_run_number }}
+          TAG: ${{ steps.payload.outputs.tag }}
+        with:
+          cmd: >-
+            yq -o=json -i
+            '.[strenv(SERVICE)].source_repository = strenv(SOURCE_REPOSITORY) |
+            .[strenv(SERVICE)].source_sha = strenv(SOURCE_SHA) |
+            .[strenv(SERVICE)].source_run_number = (strenv(SOURCE_RUN_NUMBER) | tonumber) |
+            .[strenv(SERVICE)].tag = strenv(TAG)'
+            release-state.json
+
+      - name: Validate deployment model
+        if: steps.freshness.outputs.promote == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          jq --exit-status . release-state.json >/dev/null
+          docker compose --env-file .env.example -f compose.coolify.yml config --quiet
+          git diff --check
+
+      - name: Commit promotion
+        if: steps.freshness.outputs.promote == 'true'
+        shell: bash
+        env:
+          SERVICE: ${{ steps.payload.outputs.service }}
+          TAG: ${{ steps.payload.outputs.tag }}
+        run: |
+          set -euo pipefail
+          git config user.name "arz-neshan-release-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add compose.coolify.yml release-state.json
+          git commit -m "deploy(${SERVICE}): ${TAG}"
+
+      - name: Push direct promotion
+        if: steps.freshness.outputs.promote == 'true' && steps.route.outputs.mode == 'direct'
+        run: git push origin HEAD:main
+
+      - name: Push migration-gated promotion
+        if: steps.freshness.outputs.promote == 'true' && steps.route.outputs.mode == 'pull-request'
+        env:
+          BRANCH: ${{ steps.route.outputs.branch }}
+        run: git push --set-upstream origin "HEAD:${BRANCH}"
+
+      - name: Create or update migration pull request
+        if: steps.freshness.outputs.promote == 'true' && steps.route.outputs.mode == 'pull-request'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ steps.route.outputs.branch }}
+          EXISTING_PULL_REQUEST: ${{ steps.route.outputs.existing_pull_request }}
+          PULL_REQUEST_NUMBER: ${{ steps.route.outputs.pull_request_number }}
+          SOURCE_REPOSITORY: ${{ steps.payload.outputs.source_repository }}
+          SOURCE_SHA: ${{ steps.payload.outputs.source_sha }}
+          TAG: ${{ steps.payload.outputs.tag }}
+        run: |
+          set -euo pipefail
+
+          body_file="$RUNNER_TEMP/api-migration-promotion.md"
+          {
+            echo "## API release"
+            echo
+            echo "- Source: \`${SOURCE_REPOSITORY}@${SOURCE_SHA}\`"
+            echo "- Image tag: \`${TAG}\`"
+            echo
+            echo "## Required operator checks"
+            echo
+            echo "- Review every migration since the currently deployed API SHA."
+            echo "- Verify a restorable PostgreSQL backup."
+            echo "- Confirm the release follows expand-and-contract compatibility."
+            echo "- After merge and deployment, run the explicit \`migration\` Compose profile."
+          } > "$body_file"
+
+          title="deploy(api): migration-gated release ${TAG}"
+          if [[ "$EXISTING_PULL_REQUEST" == "true" ]]; then
+            gh pr edit "$PULL_REQUEST_NUMBER" \
+              --repo "$GITHUB_REPOSITORY" \
+              --title "$title" \
+              --body-file "$body_file"
+          else
+            gh pr create \
+              --repo "$GITHUB_REPOSITORY" \
+              --base main \
+              --head "$BRANCH" \
+              --title "$title" \
+              --body-file "$body_file"
+          fi
