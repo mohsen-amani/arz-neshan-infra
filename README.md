@@ -22,6 +22,7 @@ Images are kept separately so every source repository can release independently:
 regi.mohsenamani.com/arz-neshan-infra/api:sha-<commit>
 regi.mohsenamani.com/arz-neshan-infra/admin:sha-<commit>
 regi.mohsenamani.com/arz-neshan-infra/client:sha-<commit>
+regi.mohsenamani.com/arz-neshan-infra/platform:sha-<commit>
 ```
 
 `release-state.json` records the source repository, source SHA, workflow run
@@ -32,11 +33,11 @@ from dispatch payloads.
 ## GitHub setup
 
 Add these Actions secrets to each application repository. Organization secrets
-restricted to the three repositories may be used instead of duplicating them.
+restricted to the four repositories may be used instead of duplicating them.
 
 | Secret                 | Value                                                                                        |
 | ---------------------- | -------------------------------------------------------------------------------------------- |
-| `REGISTRY_USERNAME`    | Username allowed to push to the three registry repositories                                  |
+| `REGISTRY_USERNAME`    | Username allowed to push to the four registry repositories                                   |
 | `REGISTRY_PASSWORD`    | Registry password or token                                                                   |
 | `INFRA_DISPATCH_TOKEN` | Fine-grained GitHub token restricted to `mohsen-amani/arz-neshan-infra` with Contents: write |
 
@@ -56,11 +57,12 @@ repository settings:
 
 The repositories and their allowed service identities are:
 
-| Service  | Source repository                |
-| -------- | -------------------------------- |
-| `api`    | `mohsen-amani/arz-neshan-api`    |
-| `admin`  | `mohsen-amani/arz-neshan-admin`  |
-| `client` | `mohsen-amani/arz-neshan-client` |
+| Service    | Source repository                  |
+| ---------- | ---------------------------------- |
+| `api`      | `mohsen-amani/arz-neshan-api`      |
+| `admin`    | `mohsen-amani/arz-neshan-admin`    |
+| `client`   | `mohsen-amani/arz-neshan-client`   |
+| `platform` | `mohsen-amani/arz-neshan-platform` |
 
 ## Registry and Coolify setup
 
@@ -85,10 +87,10 @@ In Coolify:
    placeholder. Mark database, JWT, Turnstile, SMS, internal-jobs, HesabPay,
    platform-owner, SMTP, S3, and Vault credentials as secrets.
 4. Attach the client base and wildcard tenant domains to `client:8080`, the
-   admin base and wildcard tenant domains to `admin:8080`, and the API domain,
-   if required, to `api:3000`. Add matching wildcard DNS records and TLS
-   coverage for the tenant domains.
-5. Do not assign a domain or public port to `clamav` or `migration`.
+   admin base and wildcard tenant domains to `admin:8080`, the private operator
+   hostname to `platform:8080`, and the API domain, if required, to `api:3000`.
+   Add matching wildcard DNS records and TLS coverage for tenant domains.
+5. Do not assign a domain or public port to `clamav`, `reminders`, or `migration`.
 6. Preserve `attachments_data` when local attachment storage is selected.
 
 The three `PLATFORM_OWNER_*` values seed the first platform account only when
@@ -109,9 +111,10 @@ deployed.
    present on the default branch.
 2. Configure all GitHub secrets and connect the admin repository to
    `mohsen-amani/arz-neshan-admin`.
-3. Run or push `main` in API, admin, and client. The first API release is gated
-   because no deployed API SHA exists yet; review and merge its migration PR.
-4. Confirm all three zero-SHA tags were replaced and all exact images can be
+3. Run or push `main` in API, admin, client, and platform. The first API release
+   is gated because no deployed API SHA exists yet; review and merge its
+   migration PR.
+4. Confirm all four zero-SHA tags were replaced and all exact images can be
    pulled from the deployment server.
 5. Only then connect Coolify and enable automatic deployment.
 
@@ -141,7 +144,7 @@ migration during image rollback.
 
 ## Verification and rollback
 
-After deployment, verify the client and admin `/healthz` endpoints, API
+After deployment, verify the client, admin, and platform `/healthz` endpoints, API
 `/api/health/live` and `/api/health/ready`, login, password-reset email, a clean
 attachment upload/download, and the recorded client IP.
 

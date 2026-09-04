@@ -9,7 +9,7 @@ on:
         description: Service to promote
         required: true
         type: choice
-        options: [api, admin, client]
+        options: [api, admin, client, platform]
       source_repository:
         description: GitHub owner/repository that produced the image
         required: true
@@ -38,7 +38,6 @@ permissions:
 
 concurrency:
   group: arz-neshan-production-image-promotions
-  queue: max
 
 jobs:
   promote:
@@ -92,6 +91,9 @@ jobs:
               ;;
             client:mohsen-amani/arz-neshan-client)
               image="regi.mohsenamani.com/arz-neshan-infra/client:${tag}"
+              ;;
+            platform:mohsen-amani/arz-neshan-platform)
+              image="regi.mohsenamani.com/arz-neshan-infra/platform:${tag}"
               ;;
             *)
               echo "::error::The service/source repository mapping is not allowed."
@@ -263,7 +265,18 @@ jobs:
         run: |
           set -euo pipefail
           jq --exit-status . release-state.json >/dev/null
-          docker compose --env-file .env.example -f compose.coolify.yml config --quiet
+          config="$(docker compose --env-file .env.example -f compose.coolify.yml --profile migration config --format json)"
+          for service in api admin client platform reminders clamav migration; do
+            jq --exit-status --arg service "$service" '.services[$service]' <<<"$config" >/dev/null
+          done
+          jq --exit-status '.services.api.image == .services.migration.image' <<<"$config" >/dev/null
+          jq --exit-status '
+            (["api", "admin", "client", "platform"] - keys | length) == 0 and
+            all(.[]; (.source_repository | type == "string") and
+                     (.source_sha | type == "string") and
+                     (.source_run_number | type == "number") and
+                     (.tag | test("^sha-[0-9a-f]{40}$")))
+          ' release-state.json >/dev/null
           git diff --check
 
       - name: Commit promotion

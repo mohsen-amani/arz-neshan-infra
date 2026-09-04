@@ -1,191 +1,228 @@
 name: arz-neshan
 
-# Coolify must attach public domains only to client:8080, admin:8080, and
-# optionally api:3000. ClamAV and the migration profile stay private.
+# Attach public domains only to client:8080, admin:8080, platform:8080 and,
+# optionally, api:3000. ClamAV, reminders, and migration stay private.
 
 x-logging: &default-logging
   driver: json-file
   options:
     max-size: "10m"
     max-file: "5"
-#
-#x-database-environment: &database-environment
-#  DATABASE_HOST: "${DATABASE_HOST:?DATABASE_HOST is required}"
-#  DATABASE_PORT: "${DATABASE_PORT:-5432}"
-#  DATABASE_USER: "${DATABASE_USER:?DATABASE_USER is required}"
-#  DATABASE_PASS: "${DATABASE_PASS:?DATABASE_PASS is required}"
-#  DATABASE_NAME: "${DATABASE_NAME:?DATABASE_NAME is required}"
-#
-#x-api-environment: &api-environment
-#  <<: *database-environment
-#  NODE_ENV: production
-#  PORT: "3000"
-#  APP_NAME: "${APP_NAME:-Arz Neshan}"
-#  FRONT_APP_URL: "${FRONT_APP_URL:?FRONT_APP_URL is required}"
-#  CLIENT_APP_URL: "${CLIENT_APP_URL:?CLIENT_APP_URL is required}"
-#  ADMIN_BASE_DOMAIN: "${ADMIN_BASE_DOMAIN:?ADMIN_BASE_DOMAIN is required}"
-#  CLIENT_BASE_DOMAIN: "${CLIENT_BASE_DOMAIN:?CLIENT_BASE_DOMAIN is required}"
-#  PUBLIC_APP_URL: "${PUBLIC_APP_URL:?PUBLIC_APP_URL is required}"
-#  FRONT_RESET_PASSWORD_PATH: "${FRONT_RESET_PASSWORD_PATH:-/auth/reset-password}"
-#  CORS_ORIGINS: "${CORS_ORIGINS:?CORS_ORIGINS is required}"
-#  TRUST_PROXY_HOPS: "${TRUST_PROXY_HOPS:-2}"
-#  JWT_SECRET: "${JWT_SECRET:?JWT_SECRET is required}"
-#  JWT_AUDIENCE: "${JWT_AUDIENCE:-arz-neshan-api}"
-#  JWT_ISSUER: "${JWT_ISSUER:-arz-neshan}"
-#  JWT_ACCESS_TOKEN_TTL: "${JWT_ACCESS_TOKEN_TTL:-15m}"
-#  AUTH_SESSION_TTL: "${AUTH_SESSION_TTL:-30d}"
-#  AUTH_COOKIE_SECURE: "${AUTH_COOKIE_SECURE:-true}"
-#  RATE_LIMIT_WINDOW: "${RATE_LIMIT_WINDOW:-1m}"
-#  RATE_LIMIT_MAX_REQUESTS: "${RATE_LIMIT_MAX_REQUESTS:-100}"
-#  RESET_PASSWORD_TOKEN_TTL: "${RESET_PASSWORD_TOKEN_TTL:-15m}"
-#  RESET_PASSWORD_OTP_PEPPER: "${RESET_PASSWORD_OTP_PEPPER:?RESET_PASSWORD_OTP_PEPPER is required}"
-#  TURNSTILE_SECRET_KEY: "${TURNSTILE_SECRET_KEY:?TURNSTILE_SECRET_KEY is required}"
-#  SMS_GATEWAY_URL: "${SMS_GATEWAY_URL:?SMS_GATEWAY_URL is required}"
-#  SMS_GATEWAY_KEY_ID: "${SMS_GATEWAY_KEY_ID:?SMS_GATEWAY_KEY_ID is required}"
-#  SMS_GATEWAY_SECRET: "${SMS_GATEWAY_SECRET:?SMS_GATEWAY_SECRET is required}"
-#  INTERNAL_JOBS_TOKEN: "${INTERNAL_JOBS_TOKEN:?INTERNAL_JOBS_TOKEN is required}"
-#  HESABPAY_API_URL: "${HESABPAY_API_URL:?HESABPAY_API_URL is required}"
-#  HESABPAY_API_KEY: "${HESABPAY_API_KEY:?HESABPAY_API_KEY is required}"
-#  PLATFORM_OWNER_EMAIL: "${PLATFORM_OWNER_EMAIL:-}"
-#  PLATFORM_OWNER_PASSWORD: "${PLATFORM_OWNER_PASSWORD:-}"
-#  PLATFORM_OWNER_TOTP_SECRET: "${PLATFORM_OWNER_TOTP_SECRET:-}"
-#  MAIL_HOST: "${MAIL_HOST:?MAIL_HOST is required}"
-#  MAIL_PORT: "${MAIL_PORT:-587}"
-#  MAIL_USER: "${MAIL_USER:?MAIL_USER is required}"
-#  MAIL_PASS: "${MAIL_PASS:?MAIL_PASS is required}"
-#  MAIL_SECURE: "${MAIL_SECURE:-false}"
-#  MAIL_REQUIRE_TLS: "${MAIL_REQUIRE_TLS:-true}"
-#  MAIL_TLS_SERVERNAME: "${MAIL_TLS_SERVERNAME:-}"
-#  MAIL_FROM: "${MAIL_FROM:?MAIL_FROM is required}"
-#  MAIL_SUPPORT: "${MAIL_SUPPORT:-}"
-#  ATTACHMENT_STORAGE_DRIVER: "${ATTACHMENT_STORAGE_DRIVER:-local}"
-#  ATTACHMENT_LOCAL_ROOT: /app/data/attachments
-#  ATTACHMENT_MAX_BYTES: "${ATTACHMENT_MAX_BYTES:-10485760}"
-#  ATTACHMENT_AV_ENABLED: "true"
-#  CLAMAV_HOST: clamav
-#  CLAMAV_PORT: "3310"
-#  CLAMAV_TIMEOUT_MS: "${CLAMAV_TIMEOUT_MS:-15000}"
-#  ATTACHMENT_S3_ENDPOINT: "${ATTACHMENT_S3_ENDPOINT:-}"
-#  ATTACHMENT_S3_REGION: "${ATTACHMENT_S3_REGION:-us-east-1}"
-#  ATTACHMENT_S3_BUCKET: "${ATTACHMENT_S3_BUCKET:-}"
-#  ATTACHMENT_S3_ACCESS_KEY_ID: "${ATTACHMENT_S3_ACCESS_KEY_ID:-}"
-#  ATTACHMENT_S3_SECRET_ACCESS_KEY: "${ATTACHMENT_S3_SECRET_ACCESS_KEY:-}"
-#  ATTACHMENT_S3_FORCE_PATH_STYLE: "${ATTACHMENT_S3_FORCE_PATH_STYLE:-true}"
-#  ATTACHMENT_S3_CA_CERT: "${ATTACHMENT_S3_CA_CERT:-}"
-#  ATTACHMENT_ENCRYPTION_SCHEME: vault_transit_aes_256_gcm
-#  VAULT_ADDR: "${VAULT_ADDR:?VAULT_ADDR is required}"
-#  VAULT_NAMESPACE: "${VAULT_NAMESPACE:-}"
-#  VAULT_TOKEN: "${VAULT_TOKEN:?VAULT_TOKEN is required}"
-#  VAULT_TRANSIT_MOUNT: "${VAULT_TRANSIT_MOUNT:-transit}"
-#  VAULT_TRANSIT_KEY: "${VAULT_TRANSIT_KEY:-arz-neshan-attachments}"
-#  VAULT_CA_CERT: "${VAULT_CA_CERT:-}"
-#  VAULT_TIMEOUT_MS: "${VAULT_TIMEOUT_MS:-5000}"
+
+x-database-environment: &database-environment
+  DATABASE_HOST: "${DATABASE_HOST:?DATABASE_HOST is required}"
+  DATABASE_PORT: "${DATABASE_PORT:-5432}"
+  DATABASE_USER: "${DATABASE_USER:?DATABASE_USER is required}"
+  DATABASE_PASS: "${DATABASE_PASS:?DATABASE_PASS is required}"
+  DATABASE_NAME: "${DATABASE_NAME:?DATABASE_NAME is required}"
+
+x-api-environment: &api-environment
+  <<: *database-environment
+  NODE_ENV: production
+  PORT: "3000"
+  APP_NAME: "${APP_NAME:-Arz Neshan}"
+  FRONT_APP_URL: "${FRONT_APP_URL:?FRONT_APP_URL is required}"
+  CLIENT_APP_URL: "${CLIENT_APP_URL:?CLIENT_APP_URL is required}"
+  ADMIN_BASE_DOMAIN: "${ADMIN_BASE_DOMAIN:?ADMIN_BASE_DOMAIN is required}"
+  CLIENT_BASE_DOMAIN: "${CLIENT_BASE_DOMAIN:?CLIENT_BASE_DOMAIN is required}"
+  PUBLIC_APP_URL: "${PUBLIC_APP_URL:?PUBLIC_APP_URL is required}"
+  FRONT_RESET_PASSWORD_PATH: "${FRONT_RESET_PASSWORD_PATH:-/auth/reset-password}"
+  CORS_ORIGINS: "${CORS_ORIGINS:?CORS_ORIGINS is required}"
+  TRUST_PROXY_HOPS: "${TRUST_PROXY_HOPS:-2}"
+  JWT_SECRET: "${JWT_SECRET:?JWT_SECRET is required}"
+  JWT_AUDIENCE: "${JWT_AUDIENCE:-arz-neshan-api}"
+  JWT_ISSUER: "${JWT_ISSUER:-arz-neshan}"
+  JWT_ACCESS_TOKEN_TTL: "${JWT_ACCESS_TOKEN_TTL:-15m}"
+  AUTH_SESSION_TTL: "${AUTH_SESSION_TTL:-30d}"
+  AUTH_COOKIE_SECURE: "${AUTH_COOKIE_SECURE:-true}"
+  RATE_LIMIT_WINDOW: "${RATE_LIMIT_WINDOW:-1m}"
+  RATE_LIMIT_MAX_REQUESTS: "${RATE_LIMIT_MAX_REQUESTS:-100}"
+  RESET_PASSWORD_TOKEN_TTL: "${RESET_PASSWORD_TOKEN_TTL:-15m}"
+  RESET_PASSWORD_OTP_PEPPER: "${RESET_PASSWORD_OTP_PEPPER:?RESET_PASSWORD_OTP_PEPPER is required}"
+  TURNSTILE_SECRET_KEY: "${TURNSTILE_SECRET_KEY:?TURNSTILE_SECRET_KEY is required}"
+  SMS_GATEWAY_URL: "${SMS_GATEWAY_URL:?SMS_GATEWAY_URL is required}"
+  SMS_GATEWAY_KEY_ID: "${SMS_GATEWAY_KEY_ID:?SMS_GATEWAY_KEY_ID is required}"
+  SMS_GATEWAY_SECRET: "${SMS_GATEWAY_SECRET:?SMS_GATEWAY_SECRET is required}"
+  INTERNAL_JOBS_TOKEN: "${INTERNAL_JOBS_TOKEN:?INTERNAL_JOBS_TOKEN is required}"
+  HESABPAY_API_URL: "${HESABPAY_API_URL:?HESABPAY_API_URL is required}"
+  HESABPAY_API_KEY: "${HESABPAY_API_KEY:?HESABPAY_API_KEY is required}"
+  PLATFORM_OWNER_EMAIL: "${PLATFORM_OWNER_EMAIL:-}"
+  PLATFORM_OWNER_PASSWORD: "${PLATFORM_OWNER_PASSWORD:-}"
+  PLATFORM_OWNER_TOTP_SECRET: "${PLATFORM_OWNER_TOTP_SECRET:-}"
+  MAIL_HOST: "${MAIL_HOST:?MAIL_HOST is required}"
+  MAIL_PORT: "${MAIL_PORT:-587}"
+  MAIL_USER: "${MAIL_USER:?MAIL_USER is required}"
+  MAIL_PASS: "${MAIL_PASS:?MAIL_PASS is required}"
+  MAIL_SECURE: "${MAIL_SECURE:-false}"
+  MAIL_REQUIRE_TLS: "${MAIL_REQUIRE_TLS:-true}"
+  MAIL_TLS_SERVERNAME: "${MAIL_TLS_SERVERNAME:-}"
+  MAIL_FROM: "${MAIL_FROM:?MAIL_FROM is required}"
+  MAIL_SUPPORT: "${MAIL_SUPPORT:-}"
+  ATTACHMENT_STORAGE_DRIVER: "${ATTACHMENT_STORAGE_DRIVER:-local}"
+  ATTACHMENT_LOCAL_ROOT: /app/data/attachments
+  ATTACHMENT_MAX_BYTES: "${ATTACHMENT_MAX_BYTES:-10485760}"
+  ATTACHMENT_AV_ENABLED: "true"
+  CLAMAV_HOST: clamav
+  CLAMAV_PORT: "3310"
+  CLAMAV_TIMEOUT_MS: "${CLAMAV_TIMEOUT_MS:-15000}"
+  ATTACHMENT_S3_ENDPOINT: "${ATTACHMENT_S3_ENDPOINT:-}"
+  ATTACHMENT_S3_REGION: "${ATTACHMENT_S3_REGION:-us-east-1}"
+  ATTACHMENT_S3_BUCKET: "${ATTACHMENT_S3_BUCKET:-}"
+  ATTACHMENT_S3_ACCESS_KEY_ID: "${ATTACHMENT_S3_ACCESS_KEY_ID:-}"
+  ATTACHMENT_S3_SECRET_ACCESS_KEY: "${ATTACHMENT_S3_SECRET_ACCESS_KEY:-}"
+  ATTACHMENT_S3_FORCE_PATH_STYLE: "${ATTACHMENT_S3_FORCE_PATH_STYLE:-true}"
+  ATTACHMENT_S3_CA_CERT: "${ATTACHMENT_S3_CA_CERT:-}"
+  ATTACHMENT_ENCRYPTION_SCHEME: vault_transit_aes_256_gcm
+  VAULT_ADDR: "${VAULT_ADDR:?VAULT_ADDR is required}"
+  VAULT_NAMESPACE: "${VAULT_NAMESPACE:-}"
+  VAULT_TOKEN: "${VAULT_TOKEN:?VAULT_TOKEN is required}"
+  VAULT_TRANSIT_MOUNT: "${VAULT_TRANSIT_MOUNT:-transit}"
+  VAULT_TRANSIT_KEY: "${VAULT_TRANSIT_KEY:-arz-neshan-attachments}"
+  VAULT_CA_CERT: "${VAULT_CA_CERT:-}"
+  VAULT_TIMEOUT_MS: "${VAULT_TIMEOUT_MS:-5000}"
 
 services:
-#  api:
-#    image: "regi.mohsenamani.com/arz-neshan-infra/api:sha-0000000000000000000000000000000000000000"
-#    pull_policy: always
-#    init: true
-#    restart: unless-stopped
-#    stop_grace_period: 30s
-#    read_only: true
-#    tmpfs:
-#      - /tmp:size=128m,noexec,nosuid
-#    environment: *api-environment
-#    volumes:
-#      - attachments_data:/app/data/attachments
-#    expose:
-#      - "3000"
-#    depends_on:
-#      clamav:
-#        condition: service_healthy
-#    healthcheck:
-#      test:
-#        [
-#          "CMD",
-#          "node",
-#          "-e",
-#          "fetch('http://127.0.0.1:3000/api/health/ready').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))",
-#        ]
-#      interval: 30s
-#      timeout: 10s
-#      retries: 10
-#      start_period: 60s
-#    security_opt:
-#      - no-new-privileges:true
-#    cap_drop:
-#      - ALL
-#    logging: *default-logging
-#
-#  admin:
-#    image: "regi.mohsenamani.com/arz-neshan-infra/admin:sha-0000000000000000000000000000000000000000"
-#    pull_policy: always
-#    init: true
-#    restart: unless-stopped
-#    stop_grace_period: 30s
-#    read_only: true
-#    tmpfs:
-#      - /config:size=16m,noexec,nosuid
-#      - /data:size=16m,noexec,nosuid
-#    expose:
-#      - "8080"
-#    depends_on:
-#      api:
-#        condition: service_healthy
-#    healthcheck:
-#      test:
-#        [
-#          "CMD",
-#          "wget",
-#          "--quiet",
-#          "--tries=1",
-#          "--spider",
-#          "http://127.0.0.1:8080/healthz",
-#        ]
-#      interval: 30s
-#      timeout: 5s
-#      retries: 5
-#      start_period: 10s
-#    security_opt:
-#      - no-new-privileges:true
-#    cap_drop:
-#      - ALL
-#    logging: *default-logging
-#
-#  client:
-#    image: "regi.mohsenamani.com/arz-neshan-infra/client:sha-0000000000000000000000000000000000000000"
-#    pull_policy: always
-#    init: true
-#    restart: unless-stopped
-#    stop_grace_period: 30s
-#    read_only: true
-#    tmpfs:
-#      - /config:size=16m,noexec,nosuid
-#      - /data:size=16m,noexec,nosuid
-#    expose:
-#      - "8080"
-#    depends_on:
-#      api:
-#        condition: service_healthy
-#    healthcheck:
-#      test:
-#        [
-#          "CMD",
-#          "wget",
-#          "--quiet",
-#          "--tries=1",
-#          "--spider",
-#          "http://127.0.0.1:8080/healthz",
-#        ]
-#      interval: 30s
-#      timeout: 5s
-#      retries: 5
-#      start_period: 10s
-#    security_opt:
-#      - no-new-privileges:true
-#    cap_drop:
-#      - ALL
-#    logging: *default-logging
+  api:
+    image: "regi.mohsenamani.com/arz-neshan-infra/api:sha-0000000000000000000000000000000000000000"
+    pull_policy: always
+    init: true
+    restart: unless-stopped
+    stop_grace_period: 30s
+    read_only: true
+    tmpfs:
+      - /tmp:size=128m,noexec,nosuid
+    environment: *api-environment
+    volumes:
+      - attachments_data:/app/data/attachments
+    expose:
+      - "3000"
+    depends_on:
+      clamav:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/api/health/ready').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    logging: *default-logging
+
+  admin:
+    image: "regi.mohsenamani.com/arz-neshan-infra/admin:sha-0000000000000000000000000000000000000000"
+    pull_policy: always
+    init: true
+    restart: unless-stopped
+    stop_grace_period: 30s
+    read_only: true
+    tmpfs:
+      - /config:size=16m,noexec,nosuid
+      - /data:size=16m,noexec,nosuid
+    expose:
+      - "8080"
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck: &frontend-healthcheck
+      test:
+        [
+          "CMD",
+          "wget",
+          "--quiet",
+          "--tries=1",
+          "--spider",
+          "http://127.0.0.1:8080/healthz",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    logging: *default-logging
+
+  client:
+    image: "regi.mohsenamani.com/arz-neshan-infra/client:sha-0000000000000000000000000000000000000000"
+    pull_policy: always
+    init: true
+    restart: unless-stopped
+    stop_grace_period: 30s
+    read_only: true
+    tmpfs:
+      - /config:size=16m,noexec,nosuid
+      - /data:size=16m,noexec,nosuid
+    expose:
+      - "8080"
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck: *frontend-healthcheck
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    logging: *default-logging
+
+  platform:
+    image: "regi.mohsenamani.com/arz-neshan-infra/platform:sha-0000000000000000000000000000000000000000"
+    pull_policy: always
+    init: true
+    restart: unless-stopped
+    stop_grace_period: 30s
+    read_only: true
+    environment:
+      API_UPSTREAM: api:3000
+    tmpfs:
+      - /config:size=16m,noexec,nosuid
+      - /data:size=16m,noexec,nosuid
+    expose:
+      - "8080"
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck: *frontend-healthcheck
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    logging: *default-logging
+
+  reminders:
+    image: curlimages/curl:8.16.0
+    init: true
+    restart: unless-stopped
+    read_only: true
+    environment:
+      INTERNAL_JOBS_TOKEN: "${INTERNAL_JOBS_TOKEN:?INTERNAL_JOBS_TOKEN is required}"
+      REMINDER_INITIAL_DELAY_SECONDS: "${REMINDER_INITIAL_DELAY_SECONDS:-300}"
+    command:
+      - /bin/sh
+      - -ec
+      - |
+        sleep "$${REMINDER_INITIAL_DELAY_SECONDS}"
+        while true; do
+          curl --fail --silent --show-error --request POST --header "Authorization: Bearer $${INTERNAL_JOBS_TOKEN}" http://api:3000/api/internal/jobs/subscription-reminders
+          sleep 86400
+        done
+    depends_on:
+      api:
+        condition: service_healthy
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    logging: *default-logging
 
   clamav:
     image: "${CLAMAV_IMAGE:-clamav/clamav:1.4.5_base}"
@@ -205,22 +242,23 @@ services:
       - no-new-privileges:true
     logging: *default-logging
 
-#  migration:
-#    image: "regi.mohsenamani.com/arz-neshan-infra/api:sha-0000000000000000000000000000000000000000"
-#    profiles: [migration]
-#    pull_policy: always
-#    restart: "no"
-#    init: true
-#    read_only: true
-#    tmpfs:
-#      - /tmp:size=64m,noexec,nosuid
-#    environment: *database-environment
-#    command: ["npm", "run", "migration:run:prod"]
-#    security_opt:
-#      - no-new-privileges:true
-#    cap_drop:
-#      - ALL
-#    logging: *default-logging
+  # Operators run this profile explicitly after reviewing a release's migrations.
+  migration:
+    image: "regi.mohsenamani.com/arz-neshan-infra/api:sha-0000000000000000000000000000000000000000"
+    profiles: [migration]
+    pull_policy: always
+    restart: "no"
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,noexec,nosuid
+    environment: *database-environment
+    command: ["npm", "run", "migration:run:prod"]
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    logging: *default-logging
 
 volumes:
   attachments_data:
