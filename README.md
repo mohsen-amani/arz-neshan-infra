@@ -86,10 +86,12 @@ In Coolify:
 3. Copy `.env.example` into Coolify's environment editor and replace every
    placeholder. Mark database, JWT, Turnstile, SMS, internal-jobs, HesabPay,
    platform-owner, SMTP, S3, and Vault credentials as secrets.
-4. Attach the client base and wildcard tenant domains to `client:8080`, the
-   admin base and wildcard tenant domains to `admin:8080`, the private operator
-   hostname to `platform:8080`, and the API domain, if required, to `api:3000`.
-   Add matching wildcard DNS records and TLS coverage for tenant domains.
+4. Attach `admin.example.com` and `*.example.com` to `admin:8080`, the private
+   operator hostname to `platform:8080`, and the exact API hostname, if needed,
+   to `api:3000`. Do not attach customer hostnames to `client:8080`; the admin
+   frontend proxies `/portal/` to that internal service. Add one proxied `*`
+   Cloudflare DNS record and first-level wildcard TLS coverage. Ensure exact
+   `admin`, `api`, and `platform` routes win over the wildcard.
 5. Do not assign a domain or public port to `clamav`, `reminders`, or `migration`.
 6. Preserve `attachments_data` when local attachment storage is selected.
 
@@ -98,8 +100,9 @@ the platform-user table is empty. After the first account exists, remove those
 bootstrap values from Coolify and redeploy so the plaintext bootstrap password
 does not remain in the container environment.
 
-The frontend containers serve their own SPA and proxy `/api/*` to the private
-`api:3000` service, so browser API requests remain same-origin.
+The admin and platform frontends proxy `/api/*` to the private `api:3000`
+service. The admin frontend also serves the client app at `/portal/` on each
+tenant host, so browser API requests and tenant login remain same-origin.
 
 ## Bootstrap
 

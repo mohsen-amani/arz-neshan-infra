@@ -1,7 +1,8 @@
 name: arz-neshan
 
-# Attach public domains only to client:8080, admin:8080, platform:8080 and,
-# optionally, api:3000. ClamAV, reminders, and migration stay private.
+# Attach admin.example.com and *.example.com to admin:8080, the exact
+# platform hostname to platform:8080 and optionally api.example.com to api:3000.
+# Client stays internal behind admin's /portal/ proxy; sidecars remain private.
 
 x-logging: &default-logging
   driver: json-file
@@ -40,6 +41,7 @@ x-api-environment: &api-environment
   RESET_PASSWORD_TOKEN_TTL: "${RESET_PASSWORD_TOKEN_TTL:-15m}"
   RESET_PASSWORD_OTP_PEPPER: "${RESET_PASSWORD_OTP_PEPPER:?RESET_PASSWORD_OTP_PEPPER is required}"
   TURNSTILE_SECRET_KEY: "${TURNSTILE_SECRET_KEY:?TURNSTILE_SECRET_KEY is required}"
+  OTP_LOG_MODE: "false"
   SMS_GATEWAY_URL: "${SMS_GATEWAY_URL:?SMS_GATEWAY_URL is required}"
   SMS_GATEWAY_KEY_ID: "${SMS_GATEWAY_KEY_ID:?SMS_GATEWAY_KEY_ID is required}"
   SMS_GATEWAY_SECRET: "${SMS_GATEWAY_SECRET:?SMS_GATEWAY_SECRET is required}"
