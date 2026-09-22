@@ -22,6 +22,8 @@ const composeOutput = execFileSync(
     'compose.coolify.yml',
     '--profile',
     'migration',
+    '--profile',
+    'frontends',
     'config',
     '--format',
     'json',
@@ -31,6 +33,29 @@ const composeOutput = execFileSync(
 
 const compose = JSON.parse(composeOutput);
 const releaseState = JSON.parse(readFileSync('release-state.json', 'utf8'));
+
+const defaultServices = execFileSync(
+  'docker',
+  [
+    'compose',
+    '--env-file',
+    '.env.example',
+    '-f',
+    'compose.coolify.yml',
+    'config',
+    '--services',
+  ],
+  { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] },
+)
+  .trim()
+  .split(/\r?\n/)
+  .filter(Boolean)
+  .sort();
+
+assert(
+  JSON.stringify(defaultServices) === JSON.stringify(['api', 'clamav', 'reminders']),
+  `Default deployment must be API-only; found: ${defaultServices.join(', ')}`,
+);
 const serviceNames = [
   'api',
   'web',

@@ -1,8 +1,8 @@
 name: arz-neshan
 
-# Attach the apex, www, admin, wildcard tenant, and API hostnames to web:8080.
-# Attach only the exact operator hostname to platform:8080. API, migration jobs,
-# reminders, and ClamAV remain private.
+# The default deployment is API-only: expose api.example.com through api:3000.
+# Web and platform are dormant until the `frontends` profile is enabled. Migration
+# jobs use their own explicit profile; reminders and ClamAV always remain private.
 
 x-logging: &default-logging
   driver: json-file
@@ -130,15 +130,14 @@ services:
     logging: *default-logging
 
   web:
+    profiles: [frontends]
     image: "regi.mohsenamani.com/arz-neshan-infra/web:sha-0000000000000000000000000000000000000000"
     pull_policy: always
     restart: unless-stopped
     stop_grace_period: 30s
     read_only: true
     environment:
-      CLIENT_BASE_DOMAIN: "${CLIENT_BASE_DOMAIN:?CLIENT_BASE_DOMAIN is required}"
       ADMIN_BASE_DOMAIN: "${ADMIN_BASE_DOMAIN:?ADMIN_BASE_DOMAIN is required}"
-      API_DOMAIN: "${API_DOMAIN:?API_DOMAIN is required}"
     tmpfs:
       - /config:size=16m,noexec,nosuid
       - /data:size=16m,noexec,nosuid
@@ -168,6 +167,7 @@ services:
     logging: *default-logging
 
   platform:
+    profiles: [frontends]
     image: "regi.mohsenamani.com/arz-neshan-infra/platform:sha-0000000000000000000000000000000000000000"
     pull_policy: always
     init: true

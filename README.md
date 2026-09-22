@@ -12,6 +12,10 @@ operator console. Keeping them in one Compose project preserves private API
 service discovery (`api:3000`) and makes the selected release auditable in one
 commit.
 
+Deployment is intentionally incremental. With no Compose profile enabled, only
+`api`, `clamav`, and `reminders` start. The `web` and `platform` services use the
+`frontends` profile and can be enabled later without replacing the API resource.
+
 ## Release flow
 
 ```text
@@ -92,14 +96,13 @@ In Coolify:
 
 1. Create a private GitHub application from `mohsen-amani/arz-neshan-infra`,
    branch `main`, using the Docker Compose build pack and `/compose.coolify.yml`.
-2. Enable automatic deployment for infra-repository pushes.
+2. Leave `COMPOSE_PROFILES` unset for the first API-only deployment. Enable
+   automatic deployment for infra-repository pushes after bootstrap succeeds.
 3. Copy `.env.example` into Coolify's environment editor and replace every
    placeholder. Mark database, JWT, Turnstile, SMS, internal-jobs, HesabPay,
    platform-owner, SMTP, S3, and Vault credentials as secrets.
-4. Attach the apex, `www`, `admin`, wildcard tenant, and exact API hostnames to
-   `web:8080`. Attach only the private operator hostname to `platform:8080`.
-   Add apex and proxied wildcard DNS records plus first-level wildcard TLS
-   coverage. Ensure exact `api` and `platform` routes win over the wildcard.
+4. For the API-first deployment, attach only the exact API hostname to
+   `api:3000`. Do not expose ClamAV, reminders, or either migration job.
 5. Do not assign a domain or public port to `clamav`, `reminders`, `migration`,
    or `financial-migration`.
 6. Preserve `attachments_data` when local attachment storage is selected.
@@ -113,10 +116,11 @@ the platform-user table is empty. After the first account exists, remove those
 bootstrap values from Coolify and redeploy so the plaintext bootstrap password
 does not remain in the container environment.
 
-The web and platform images proxy `/api/*` to the private `api:3000` service.
-The web image serves the public application on `www`, redirects the apex and
-`admin` hostnames to `www`, and serves the workspace application at the root of
-each tenant subdomain. Browser API requests therefore remain same-origin.
+When the `frontends` profile is enabled, the web and platform images proxy
+`/api/*` to `api:3000`. The web image serves the public application on `www`,
+redirects the apex and `admin` hostnames to `www`, and serves the workspace
+application at the root of each tenant subdomain. Browser API requests therefore
+remain same-origin.
 
 ## PostgreSQL setup
 
@@ -136,7 +140,7 @@ Set all values from `.env.example` in Coolify. The API readiness endpoint checks
 both database connections. A deployment cannot become healthy when either
 database is missing, unreachable, or has invalid credentials.
 
-## Bootstrap
+## API-first bootstrap
 
 The committed zero-SHA image tags are validation placeholders and must never be
 deployed.
@@ -144,16 +148,17 @@ deployed.
 1. Commit this workflow and Compose model to `arz-neshan-infra/main` before
    enabling the app release workflows; `repository_dispatch` only runs workflows
    present on the default branch.
-2. Configure all GitHub secrets and ensure API and the frontend workspace are
-   pushed to the source repositories listed in `release-state.json`.
-3. Run or push `main` in both repositories. The first API release is gated
-   because no deployed API SHA exists yet; review and merge its migration PR.
-4. Confirm both zero-SHA release records were replaced and the exact API, web,
-   and platform images can be pulled from the deployment server.
-5. Provision both databases, Vault, SMTP, SMS gateway, and attachment storage;
+2. Configure `REGISTRY_USERNAME`, `REGISTRY_PASSWORD`, and
+   `INFRA_DISPATCH_TOKEN` in `arz-neshan-api`, then push its `main` branch. The
+   first API release is migration-gated; review and merge its infra PR.
+3. Confirm the API zero-SHA record was replaced and pull that exact image from
+   the deployment server. The frontend release may remain at its zero-SHA state.
+4. Provision both databases, Vault, SMTP, SMS gateway, and attachment storage;
    enter the production variables in Coolify.
-6. Run both database migrations at the approved bootstrap point, then deploy and
+5. Run both database migrations at the approved bootstrap point, then deploy and
    verify the application manually.
+6. Attach `https://api.example.com:3000` to the `api` component and verify
+   `/api/health/live` and `/api/health/ready`.
 7. Only after a healthy manual deployment, enable automatic deployment for
    infra-repository pushes.
 
@@ -162,6 +167,20 @@ Validate the checked-out infra repository before connecting it to Coolify:
 ```sh
 node scripts/validate-deployment.mjs
 ```
+
+## Add the frontends later
+
+1. Push `arz-neshan-frontends` and configure its registry/dispatch secrets plus
+   the public `TURNSTILE_SITE_KEY` repository variable.
+2. Push its `main` branch. Confirm one infra promotion updates both `web` and
+   `platform` to the same frontend SHA and replaces the frontend zero-SHA state.
+3. In Coolify, set `COMPOSE_PROFILES=frontends`, reload the Compose definition,
+   and redeploy the same application.
+4. Attach the apex, `www`, `admin`, and wildcard tenant hostnames to `web:8080`.
+   Attach only the private operator hostname to `platform:8080`. Keep the exact
+   API hostname attached directly to `api:3000`.
+5. Add apex and proxied wildcard DNS records plus first-level wildcard TLS
+   coverage. Ensure the exact API and platform routes win over the wildcard.
 
 ## Database migrations
 
