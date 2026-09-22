@@ -1,8 +1,8 @@
 name: arz-neshan
 
-# Attach admin.example.com and *.example.com to admin:8080, the exact
-# platform hostname to platform:8080 and optionally api.example.com to api:3000.
-# Client stays internal behind admin's /portal/ proxy; sidecars remain private.
+# Attach the apex, www, admin, wildcard tenant, and API hostnames to web:8080.
+# Attach only the exact operator hostname to platform:8080. API, migration jobs,
+# reminders, and ClamAV remain private.
 
 x-logging: &default-logging
   driver: json-file
@@ -17,8 +17,15 @@ x-database-environment: &database-environment
   DATABASE_PASS: "${DATABASE_PASS:?DATABASE_PASS is required}"
   DATABASE_NAME: "${DATABASE_NAME:?DATABASE_NAME is required}"
 
+x-financial-database-environment: &financial-database-environment
+  FINANCIAL_DATABASE_HOST: "${FINANCIAL_DATABASE_HOST:?FINANCIAL_DATABASE_HOST is required}"
+  FINANCIAL_DATABASE_PORT: "${FINANCIAL_DATABASE_PORT:-5432}"
+  FINANCIAL_DATABASE_NAME: "${FINANCIAL_DATABASE_NAME:?FINANCIAL_DATABASE_NAME is required}"
+  FINANCIAL_DATABASE_USER: "${FINANCIAL_DATABASE_USER:?FINANCIAL_DATABASE_USER is required}"
+  FINANCIAL_DATABASE_PASS: "${FINANCIAL_DATABASE_PASS:?FINANCIAL_DATABASE_PASS is required}"
+
 x-api-environment: &api-environment
-  <<: *database-environment
+  <<: [*database-environment, *financial-database-environment]
   NODE_ENV: production
   PORT: "3000"
   APP_NAME: "${APP_NAME:-Arz Neshan}"
@@ -41,13 +48,16 @@ x-api-environment: &api-environment
   RESET_PASSWORD_TOKEN_TTL: "${RESET_PASSWORD_TOKEN_TTL:-15m}"
   RESET_PASSWORD_OTP_PEPPER: "${RESET_PASSWORD_OTP_PEPPER:?RESET_PASSWORD_OTP_PEPPER is required}"
   TURNSTILE_SECRET_KEY: "${TURNSTILE_SECRET_KEY:?TURNSTILE_SECRET_KEY is required}"
+  OTP_DEV_ECHO: "false"
   OTP_LOG_MODE: "false"
   SMS_GATEWAY_URL: "${SMS_GATEWAY_URL:?SMS_GATEWAY_URL is required}"
-  SMS_GATEWAY_KEY_ID: "${SMS_GATEWAY_KEY_ID:?SMS_GATEWAY_KEY_ID is required}"
+  SMS_GATEWAY_KEY_ID: "${SMS_GATEWAY_KEY_ID:-arz-neshan-api}"
   SMS_GATEWAY_SECRET: "${SMS_GATEWAY_SECRET:?SMS_GATEWAY_SECRET is required}"
+  SMS_GATEWAY_DISABLED: "false"
   INTERNAL_JOBS_TOKEN: "${INTERNAL_JOBS_TOKEN:?INTERNAL_JOBS_TOKEN is required}"
-  HESABPAY_API_URL: "${HESABPAY_API_URL:?HESABPAY_API_URL is required}"
+  HESABPAY_API_URL: "${HESABPAY_API_URL:-https://api.hesab.com}"
   HESABPAY_API_KEY: "${HESABPAY_API_KEY:?HESABPAY_API_KEY is required}"
+  HESABPAY_MOCK_MODE: "false"
   PLATFORM_OWNER_EMAIL: "${PLATFORM_OWNER_EMAIL:-}"
   PLATFORM_OWNER_PASSWORD: "${PLATFORM_OWNER_PASSWORD:-}"
   PLATFORM_OWNER_TOTP_SECRET: "${PLATFORM_OWNER_TOTP_SECRET:-}"
@@ -119,13 +129,16 @@ services:
       - ALL
     logging: *default-logging
 
-  admin:
-    image: "regi.mohsenamani.com/arz-neshan-infra/admin:sha-0000000000000000000000000000000000000000"
+  web:
+    image: "regi.mohsenamani.com/arz-neshan-infra/web:sha-0000000000000000000000000000000000000000"
     pull_policy: always
-    init: true
     restart: unless-stopped
     stop_grace_period: 30s
     read_only: true
+    environment:
+      CLIENT_BASE_DOMAIN: "${CLIENT_BASE_DOMAIN:?CLIENT_BASE_DOMAIN is required}"
+      ADMIN_BASE_DOMAIN: "${ADMIN_BASE_DOMAIN:?ADMIN_BASE_DOMAIN is required}"
+      API_DOMAIN: "${API_DOMAIN:?API_DOMAIN is required}"
     tmpfs:
       - /config:size=16m,noexec,nosuid
       - /data:size=16m,noexec,nosuid
@@ -148,28 +161,6 @@ services:
       timeout: 5s
       retries: 5
       start_period: 10s
-    security_opt:
-      - no-new-privileges:true
-    cap_drop:
-      - ALL
-    logging: *default-logging
-
-  client:
-    image: "regi.mohsenamani.com/arz-neshan-infra/client:sha-0000000000000000000000000000000000000000"
-    pull_policy: always
-    init: true
-    restart: unless-stopped
-    stop_grace_period: 30s
-    read_only: true
-    tmpfs:
-      - /config:size=16m,noexec,nosuid
-      - /data:size=16m,noexec,nosuid
-    expose:
-      - "8080"
-    depends_on:
-      api:
-        condition: service_healthy
-    healthcheck: *frontend-healthcheck
     security_opt:
       - no-new-privileges:true
     cap_drop:
@@ -256,6 +247,29 @@ services:
       - /tmp:size=64m,noexec,nosuid
     environment: *database-environment
     command: ["npm", "run", "migration:run:prod"]
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    logging: *default-logging
+
+  financial-migration:
+    image: "regi.mohsenamani.com/arz-neshan-infra/api:sha-0000000000000000000000000000000000000000"
+    profiles: [migration]
+    pull_policy: always
+    restart: "no"
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,noexec,nosuid
+    environment:
+      FINANCIAL_DATABASE_HOST: "${FINANCIAL_DATABASE_HOST:?FINANCIAL_DATABASE_HOST is required}"
+      FINANCIAL_DATABASE_PORT: "${FINANCIAL_DATABASE_PORT:-5432}"
+      FINANCIAL_DATABASE_NAME: "${FINANCIAL_DATABASE_NAME:?FINANCIAL_DATABASE_NAME is required}"
+      FINANCIAL_DATABASE_MIGRATION_USER: "${FINANCIAL_DATABASE_MIGRATION_USER:?FINANCIAL_DATABASE_MIGRATION_USER is required}"
+      FINANCIAL_DATABASE_MIGRATION_PASS: "${FINANCIAL_DATABASE_MIGRATION_PASS:?FINANCIAL_DATABASE_MIGRATION_PASS is required}"
+      FINANCIAL_DATABASE_USER: "${FINANCIAL_DATABASE_USER:?FINANCIAL_DATABASE_USER is required}"
+    command: ["npm", "run", "migration:run:financial:prod"]
     security_opt:
       - no-new-privileges:true
     cap_drop:

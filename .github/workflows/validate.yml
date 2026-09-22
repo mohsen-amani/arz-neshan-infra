@@ -17,21 +17,4 @@ jobs:
           persist-credentials: false
 
       - name: Validate services, images, and release metadata
-        shell: bash
-        run: |
-          set -euo pipefail
-          config="$(docker compose --env-file .env.example -f compose.coolify.yml --profile migration config --format json)"
-
-          for service in api admin client platform reminders clamav migration; do
-            jq --exit-status --arg service "$service" '.services[$service]' <<<"$config" >/dev/null
-          done
-
-          jq --exit-status '.services.api.image == .services.migration.image' <<<"$config" >/dev/null
-          jq --exit-status '
-            (["api", "admin", "client", "platform"] - keys | length) == 0 and
-            all(.[]; (.source_repository | type == "string") and
-                     (.source_sha | type == "string") and
-                     (.source_run_number | type == "number") and
-                     (.tag | test("^sha-[0-9a-f]{40}$")))
-          ' release-state.json >/dev/null
-          git diff --check
+        run: node scripts/validate-deployment.mjs

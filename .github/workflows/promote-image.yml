@@ -9,7 +9,7 @@ on:
         description: Service to promote
         required: true
         type: choice
-        options: [api, admin, client, platform]
+        options: [api, frontends]
       source_repository:
         description: GitHub owner/repository that produced the image
         required: true
@@ -82,18 +82,16 @@ jobs:
             migrations_changed="${MANUAL_MIGRATIONS_CHANGED,,}"
           fi
 
+          image=
+          web_image=
+          platform_image=
           case "${service}:${source_repository}" in
             api:mohsen-amani/arz-neshan-api)
               image="regi.mohsenamani.com/arz-neshan-infra/api:${tag}"
               ;;
-            admin:mohsen-amani/arz-neshan-admin)
-              image="regi.mohsenamani.com/arz-neshan-infra/admin:${tag}"
-              ;;
-            client:mohsen-amani/arz-neshan-client)
-              image="regi.mohsenamani.com/arz-neshan-infra/client:${tag}"
-              ;;
-            platform:mohsen-amani/arz-neshan-platform)
-              image="regi.mohsenamani.com/arz-neshan-infra/platform:${tag}"
+            frontends:mohsen-amani/arz-neshan-frontends)
+              web_image="regi.mohsenamani.com/arz-neshan-infra/web:${tag}"
+              platform_image="regi.mohsenamani.com/arz-neshan-infra/platform:${tag}"
               ;;
             *)
               echo "::error::The service/source repository mapping is not allowed."
@@ -133,6 +131,8 @@ jobs:
             echo "source_run_number=$source_run_number"
             echo "tag=$tag"
             echo "image=$image"
+            echo "web_image=$web_image"
+            echo "platform_image=$platform_image"
             echo "migrations_changed=$migrations_changed"
           } >> "$GITHUB_OUTPUT"
 
@@ -224,14 +224,18 @@ jobs:
 
           echo "promote=true" >> "$GITHUB_OUTPUT"
 
-      - name: Update non-API image
-        if: steps.freshness.outputs.promote == 'true' && steps.payload.outputs.service != 'api'
+      - name: Update frontend images
+        if: steps.freshness.outputs.promote == 'true' && steps.payload.outputs.service == 'frontends'
         uses: mikefarah/yq@v4.53.2
         env:
-          SERVICE: ${{ steps.payload.outputs.service }}
-          IMAGE: ${{ steps.payload.outputs.image }}
+          WEB_IMAGE: ${{ steps.payload.outputs.web_image }}
+          PLATFORM_IMAGE: ${{ steps.payload.outputs.platform_image }}
         with:
-          cmd: yq -i '.services[strenv(SERVICE)].image = strenv(IMAGE)' compose.coolify.yml
+          cmd: >-
+            yq -i
+            '.services.web.image = strenv(WEB_IMAGE) |
+            .services.platform.image = strenv(PLATFORM_IMAGE)'
+            compose.coolify.yml
 
       - name: Update API and migration images
         if: steps.freshness.outputs.promote == 'true' && steps.payload.outputs.service == 'api'
@@ -239,7 +243,12 @@ jobs:
         env:
           IMAGE: ${{ steps.payload.outputs.image }}
         with:
-          cmd: yq -i '.services.api.image = strenv(IMAGE) | .services.migration.image = strenv(IMAGE)' compose.coolify.yml
+          cmd: >-
+            yq -i
+            '.services.api.image = strenv(IMAGE) |
+            .services.migration.image = strenv(IMAGE) |
+            .services["financial-migration"].image = strenv(IMAGE)'
+            compose.coolify.yml
 
       - name: Update release metadata
         if: steps.freshness.outputs.promote == 'true'
@@ -261,23 +270,7 @@ jobs:
 
       - name: Validate deployment model
         if: steps.freshness.outputs.promote == 'true'
-        shell: bash
-        run: |
-          set -euo pipefail
-          jq --exit-status . release-state.json >/dev/null
-          config="$(docker compose --env-file .env.example -f compose.coolify.yml --profile migration config --format json)"
-          for service in api admin client platform reminders clamav migration; do
-            jq --exit-status --arg service "$service" '.services[$service]' <<<"$config" >/dev/null
-          done
-          jq --exit-status '.services.api.image == .services.migration.image' <<<"$config" >/dev/null
-          jq --exit-status '
-            (["api", "admin", "client", "platform"] - keys | length) == 0 and
-            all(.[]; (.source_repository | type == "string") and
-                     (.source_sha | type == "string") and
-                     (.source_run_number | type == "number") and
-                     (.tag | test("^sha-[0-9a-f]{40}$")))
-          ' release-state.json >/dev/null
-          git diff --check
+        run: node scripts/validate-deployment.mjs
 
       - name: Commit promotion
         if: steps.freshness.outputs.promote == 'true'
@@ -328,7 +321,8 @@ jobs:
             echo "- Review every migration since the currently deployed API SHA."
             echo "- Verify a restorable PostgreSQL backup."
             echo "- Confirm the release follows expand-and-contract compatibility."
-            echo "- After merge and deployment, run the explicit \`migration\` Compose profile."
+            echo "- Confirm both the old and new API tolerate the migration transition."
+            echo "- Run both jobs in the explicit \`migration\` Compose profile at the approved release point."
           } > "$body_file"
 
           title="deploy(api): migration-gated release ${TAG}"
