@@ -210,23 +210,23 @@ services:
 #      - ALL
 #    logging: *default-logging
 #
-#  clamav:
-#    image: "${CLAMAV_IMAGE:-clamav/clamav:1.4.5_base}"
-#    restart: unless-stopped
-#    stop_grace_period: 30s
-#    volumes:
-#      - clamav_database:/var/lib/clamav
-#    expose:
-#      - "3310"
-#    healthcheck:
-#      test: ["CMD-SHELL", "clamdscan --ping=1 >/dev/null 2>&1"]
-#      interval: 30s
-#      timeout: 10s
-#      retries: 20
-#      start_period: 120s
-#    security_opt:
-#      - no-new-privileges:true
-#    logging: *default-logging
+ clamav:
+   image: "${CLAMAV_IMAGE:-clamav/clamav:1.4.5_base}"
+   restart: unless-stopped
+   stop_grace_period: 30s
+   volumes:
+     - clamav_database:/var/lib/clamav
+   expose:
+     - "3310"
+   healthcheck:
+     test: ["CMD-SHELL", "clamdscan --ping=1 >/dev/null 2>&1"]
+     interval: 30s
+     timeout: 10s
+     retries: 20
+     start_period: 120s
+   security_opt:
+     - no-new-privileges:true
+   logging: *default-logging
 #
 #  # Operators run this profile explicitly after reviewing a release's migrations.
 #  migration:
