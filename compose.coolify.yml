@@ -17,15 +17,8 @@ x-database-environment: &database-environment
   DATABASE_PASS: "${DATABASE_PASS:?DATABASE_PASS is required}"
   DATABASE_NAME: "${DATABASE_NAME:?DATABASE_NAME is required}"
 
-x-financial-database-environment: &financial-database-environment
-  FINANCIAL_DATABASE_HOST: "${FINANCIAL_DATABASE_HOST:?FINANCIAL_DATABASE_HOST is required}"
-  FINANCIAL_DATABASE_PORT: "${FINANCIAL_DATABASE_PORT:-5432}"
-  FINANCIAL_DATABASE_NAME: "${FINANCIAL_DATABASE_NAME:?FINANCIAL_DATABASE_NAME is required}"
-  FINANCIAL_DATABASE_USER: "${FINANCIAL_DATABASE_USER:?FINANCIAL_DATABASE_USER is required}"
-  FINANCIAL_DATABASE_PASS: "${FINANCIAL_DATABASE_PASS:?FINANCIAL_DATABASE_PASS is required}"
-
 x-api-environment: &api-environment
-  <<: [*database-environment, *financial-database-environment]
+  <<: [*database-environment]
   NODE_ENV: production
   PORT: "3000"
   APP_NAME: "${APP_NAME:-Arz Neshan}"
@@ -129,152 +122,129 @@ services:
       - ALL
     logging: *default-logging
 
-  web:
-    profiles: [frontends]
-    image: "regi.mohsenamani.com/arz-neshan-infra/web:sha-0000000000000000000000000000000000000000"
-    pull_policy: always
-    restart: unless-stopped
-    stop_grace_period: 30s
-    read_only: true
-    environment:
-      ADMIN_BASE_DOMAIN: "${ADMIN_BASE_DOMAIN:?ADMIN_BASE_DOMAIN is required}"
-    tmpfs:
-      - /config:size=16m,noexec,nosuid
-      - /data:size=16m,noexec,nosuid
-    expose:
-      - "8080"
-    depends_on:
-      api:
-        condition: service_healthy
-    healthcheck: &frontend-healthcheck
-      test:
-        [
-          "CMD",
-          "wget",
-          "--quiet",
-          "--tries=1",
-          "--spider",
-          "http://127.0.0.1:8080/healthz",
-        ]
-      interval: 30s
-      timeout: 5s
-      retries: 5
-      start_period: 10s
-    security_opt:
-      - no-new-privileges:true
-    cap_drop:
-      - ALL
-    logging: *default-logging
-
-  platform:
-    profiles: [frontends]
-    image: "regi.mohsenamani.com/arz-neshan-infra/platform:sha-0000000000000000000000000000000000000000"
-    pull_policy: always
-    init: true
-    restart: unless-stopped
-    stop_grace_period: 30s
-    read_only: true
-    environment:
-      API_UPSTREAM: api:3000
-    tmpfs:
-      - /config:size=16m,noexec,nosuid
-      - /data:size=16m,noexec,nosuid
-    expose:
-      - "8080"
-    depends_on:
-      api:
-        condition: service_healthy
-    healthcheck: *frontend-healthcheck
-    security_opt:
-      - no-new-privileges:true
-    cap_drop:
-      - ALL
-    logging: *default-logging
-
-  reminders:
-    image: curlimages/curl:8.16.0
-    init: true
-    restart: unless-stopped
-    read_only: true
-    environment:
-      INTERNAL_JOBS_TOKEN: "${INTERNAL_JOBS_TOKEN:?INTERNAL_JOBS_TOKEN is required}"
-      REMINDER_INITIAL_DELAY_SECONDS: "${REMINDER_INITIAL_DELAY_SECONDS:-300}"
-    command:
-      - /bin/sh
-      - -ec
-      - |
-        sleep "$${REMINDER_INITIAL_DELAY_SECONDS}"
-        while true; do
-          curl --fail --silent --show-error --request POST --header "Authorization: Bearer $${INTERNAL_JOBS_TOKEN}" http://api:3000/api/internal/jobs/subscription-reminders
-          sleep 86400
-        done
-    depends_on:
-      api:
-        condition: service_healthy
-    security_opt:
-      - no-new-privileges:true
-    cap_drop:
-      - ALL
-    logging: *default-logging
-
-  clamav:
-    image: "${CLAMAV_IMAGE:-clamav/clamav:1.4.5_base}"
-    restart: unless-stopped
-    stop_grace_period: 30s
-    volumes:
-      - clamav_database:/var/lib/clamav
-    expose:
-      - "3310"
-    healthcheck:
-      test: ["CMD-SHELL", "clamdscan --ping=1 >/dev/null 2>&1"]
-      interval: 30s
-      timeout: 10s
-      retries: 20
-      start_period: 120s
-    security_opt:
-      - no-new-privileges:true
-    logging: *default-logging
-
-  # Operators run this profile explicitly after reviewing a release's migrations.
-  migration:
-    image: "regi.mohsenamani.com/arz-neshan-infra/api:sha-0000000000000000000000000000000000000000"
-    profiles: [migration]
-    pull_policy: always
-    restart: "no"
-    init: true
-    read_only: true
-    tmpfs:
-      - /tmp:size=64m,noexec,nosuid
-    environment: *database-environment
-    command: ["npm", "run", "migration:run:prod"]
-    security_opt:
-      - no-new-privileges:true
-    cap_drop:
-      - ALL
-    logging: *default-logging
-
-  financial-migration:
-    image: "regi.mohsenamani.com/arz-neshan-infra/api:sha-0000000000000000000000000000000000000000"
-    profiles: [migration]
-    pull_policy: always
-    restart: "no"
-    init: true
-    read_only: true
-    tmpfs:
-      - /tmp:size=64m,noexec,nosuid
-    environment:
-      FINANCIAL_DATABASE_HOST: "${FINANCIAL_DATABASE_HOST:?FINANCIAL_DATABASE_HOST is required}"
-      FINANCIAL_DATABASE_PORT: "${FINANCIAL_DATABASE_PORT:-5432}"
-      FINANCIAL_DATABASE_NAME: "${FINANCIAL_DATABASE_NAME:?FINANCIAL_DATABASE_NAME is required}"
-      FINANCIAL_DATABASE_MIGRATION_USER: "${FINANCIAL_DATABASE_MIGRATION_USER:?FINANCIAL_DATABASE_MIGRATION_USER is required}"
-      FINANCIAL_DATABASE_MIGRATION_PASS: "${FINANCIAL_DATABASE_MIGRATION_PASS:?FINANCIAL_DATABASE_MIGRATION_PASS is required}"
-      FINANCIAL_DATABASE_USER: "${FINANCIAL_DATABASE_USER:?FINANCIAL_DATABASE_USER is required}"
-    command: ["npm", "run", "migration:run:financial:prod"]
-    security_opt:
-      - no-new-privileges:true
-    cap_drop:
-      - ALL
-    logging: *default-logging
+#  web:
+#    profiles: [frontends]
+#    image: "regi.mohsenamani.com/arz-neshan-infra/web:sha-0000000000000000000000000000000000000000"
+#    pull_policy: always
+#    restart: unless-stopped
+#    stop_grace_period: 30s
+#    read_only: true
+#    environment:
+#      ADMIN_BASE_DOMAIN: "${ADMIN_BASE_DOMAIN:?ADMIN_BASE_DOMAIN is required}"
+#    tmpfs:
+#      - /config:size=16m,noexec,nosuid
+#      - /data:size=16m,noexec,nosuid
+#    expose:
+#      - "8080"
+#    depends_on:
+#      api:
+#        condition: service_healthy
+#    healthcheck: &frontend-healthcheck
+#      test:
+#        [
+#          "CMD",
+#          "wget",
+#          "--quiet",
+#          "--tries=1",
+#          "--spider",
+#          "http://127.0.0.1:8080/healthz",
+#        ]
+#      interval: 30s
+#      timeout: 5s
+#      retries: 5
+#      start_period: 10s
+#    security_opt:
+#      - no-new-privileges:true
+#    cap_drop:
+#      - ALL
+#    logging: *default-logging
+#
+#  platform:
+#    profiles: [frontends]
+#    image: "regi.mohsenamani.com/arz-neshan-infra/platform:sha-0000000000000000000000000000000000000000"
+#    pull_policy: always
+#    init: true
+#    restart: unless-stopped
+#    stop_grace_period: 30s
+#    read_only: true
+#    environment:
+#      API_UPSTREAM: api:3000
+#    tmpfs:
+#      - /config:size=16m,noexec,nosuid
+#      - /data:size=16m,noexec,nosuid
+#    expose:
+#      - "8080"
+#    depends_on:
+#      api:
+#        condition: service_healthy
+#    healthcheck: *frontend-healthcheck
+#    security_opt:
+#      - no-new-privileges:true
+#    cap_drop:
+#      - ALL
+#    logging: *default-logging
+#
+#  reminders:
+#    image: curlimages/curl:8.16.0
+#    init: true
+#    restart: unless-stopped
+#    read_only: true
+#    environment:
+#      INTERNAL_JOBS_TOKEN: "${INTERNAL_JOBS_TOKEN:?INTERNAL_JOBS_TOKEN is required}"
+#      REMINDER_INITIAL_DELAY_SECONDS: "${REMINDER_INITIAL_DELAY_SECONDS:-300}"
+#    command:
+#      - /bin/sh
+#      - -ec
+#      - |
+#        sleep "$${REMINDER_INITIAL_DELAY_SECONDS}"
+#        while true; do
+#          curl --fail --silent --show-error --request POST --header "Authorization: Bearer $${INTERNAL_JOBS_TOKEN}" http://api:3000/api/internal/jobs/subscription-reminders
+#          sleep 86400
+#        done
+#    depends_on:
+#      api:
+#        condition: service_healthy
+#    security_opt:
+#      - no-new-privileges:true
+#    cap_drop:
+#      - ALL
+#    logging: *default-logging
+#
+#  clamav:
+#    image: "${CLAMAV_IMAGE:-clamav/clamav:1.4.5_base}"
+#    restart: unless-stopped
+#    stop_grace_period: 30s
+#    volumes:
+#      - clamav_database:/var/lib/clamav
+#    expose:
+#      - "3310"
+#    healthcheck:
+#      test: ["CMD-SHELL", "clamdscan --ping=1 >/dev/null 2>&1"]
+#      interval: 30s
+#      timeout: 10s
+#      retries: 20
+#      start_period: 120s
+#    security_opt:
+#      - no-new-privileges:true
+#    logging: *default-logging
+#
+#  # Operators run this profile explicitly after reviewing a release's migrations.
+#  migration:
+#    image: "regi.mohsenamani.com/arz-neshan-infra/api:sha-0000000000000000000000000000000000000000"
+#    profiles: [migration]
+#    pull_policy: always
+#    restart: "no"
+#    init: true
+#    read_only: true
+#    tmpfs:
+#      - /tmp:size=64m,noexec,nosuid
+#    environment: *database-environment
+#    command: ["npm", "run", "migration:run:prod"]
+#    security_opt:
+#      - no-new-privileges:true
+#    cap_drop:
+#      - ALL
+#    logging: *default-logging
 
 volumes:
   attachments_data:
