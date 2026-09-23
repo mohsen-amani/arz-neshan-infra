@@ -88,7 +88,7 @@ x-api-environment: &api-environment
 
 services:
   api:
-    image: "regi.mohsenamani.com/arz-neshan-infra/api:sha-0000000000000000000000000000000000000000"
+    image: "regi.mohsenamani.com/arz-neshan-infra/api:v1.0.0"
     pull_policy: always
     init: true
     restart: unless-stopped
