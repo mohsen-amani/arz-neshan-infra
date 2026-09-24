@@ -122,42 +122,42 @@ services:
       - ALL
     logging: *default-logging
 
-#  web:
-#    profiles: [frontends]
-#    image: "regi.mohsenamani.com/arz-neshan-infra/web:sha-0000000000000000000000000000000000000000"
-#    pull_policy: always
-#    restart: unless-stopped
-#    stop_grace_period: 30s
-#    read_only: true
-#    environment:
-#      ADMIN_BASE_DOMAIN: "${ADMIN_BASE_DOMAIN:?ADMIN_BASE_DOMAIN is required}"
-#    tmpfs:
-#      - /config:size=16m,noexec,nosuid
-#      - /data:size=16m,noexec,nosuid
-#    expose:
-#      - "8080"
-#    depends_on:
-#      api:
-#        condition: service_healthy
-#    healthcheck: &frontend-healthcheck
-#      test:
-#        [
-#          "CMD",
-#          "wget",
-#          "--quiet",
-#          "--tries=1",
-#          "--spider",
-#          "http://127.0.0.1:8080/healthz",
-#        ]
-#      interval: 30s
-#      timeout: 5s
-#      retries: 5
-#      start_period: 10s
-#    security_opt:
-#      - no-new-privileges:true
-#    cap_drop:
-#      - ALL
-#    logging: *default-logging
+  web:
+    profiles: [frontends]
+    image: "regi.mohsenamani.com/arz-neshan-infra/web:sha-0000000000000000000000000000000000000000"
+    pull_policy: always
+    restart: unless-stopped
+    stop_grace_period: 30s
+    read_only: true
+    environment:
+      ADMIN_BASE_DOMAIN: "${ADMIN_BASE_DOMAIN:?ADMIN_BASE_DOMAIN is required}"
+    tmpfs:
+      - /config:size=16m,noexec,nosuid
+      - /data:size=16m,noexec,nosuid
+    expose:
+      - "8080"
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck: &frontend-healthcheck
+      test:
+        [
+          "CMD",
+          "wget",
+          "--quiet",
+          "--tries=1",
+          "--spider",
+          "http://127.0.0.1:8080/healthz",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    logging: *default-logging
 #
 #  platform:
 #    profiles: [frontends]

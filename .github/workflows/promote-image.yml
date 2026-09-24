@@ -87,7 +87,7 @@ jobs:
           platform_image=
           case "${service}:${source_repository}" in
             api:mohsen-amani/arz-neshan-api)
-              image="regi.mohsenamani.com/arz-neshan-infra/api:${tag}"
+              image="regi.mohsenamani.com/arz-neshan/api:${tag}"
               ;;
             frontends:mohsen-amani/arz-neshan-frontends)
               web_image="regi.mohsenamani.com/arz-neshan-infra/web:${tag}"
