@@ -1,25 +1,20 @@
 name: arz-neshan
-
 # The default deployment contains the API and its private ClamAV dependency.
 # Web and platform remain dormant until the `frontends` profile is enabled.
 # Database migrations run only through the explicit `migration` profile.
-
-
 x-logging: &default-logging
   driver: json-file
   options:
     max-size: "10m"
     max-file: "5"
-
 x-database-environment: &database-environment
   DATABASE_HOST: "${DATABASE_HOST:?DATABASE_HOST is required}"
   DATABASE_PORT: "${DATABASE_PORT:-5432}"
   DATABASE_USER: "${DATABASE_USER:?DATABASE_USER is required}"
   DATABASE_PASS: "${DATABASE_PASS:?DATABASE_PASS is required}"
   DATABASE_NAME: "${DATABASE_NAME:?DATABASE_NAME is required}"
-
 x-api-environment: &api-environment
-  <<: [*database-environment]
+  !!merge <<: [*database-environment]
   NODE_ENV: production
   PORT: "3000"
   APP_NAME: "${APP_NAME:-Arz Neshan}"
@@ -86,7 +81,6 @@ x-api-environment: &api-environment
   VAULT_TRANSIT_KEY: "${VAULT_TRANSIT_KEY:-arz-neshan-attachments}"
   VAULT_CA_CERT: "${VAULT_CA_CERT:-}"
   VAULT_TIMEOUT_MS: "${VAULT_TIMEOUT_MS:-5000}"
-
 services:
   clamav:
     image: "${CLAMAV_IMAGE:-clamav/clamav:1.4.5_base}"
@@ -97,7 +91,7 @@ services:
     expose:
       - "3310"
     healthcheck:
-      test: [ "CMD-SHELL", "clamdscan --ping=1 >/dev/null 2>&1" ]
+      test: ["CMD-SHELL", "clamdscan --ping=1 >/dev/null 2>&1"]
       interval: 30s
       timeout: 10s
       retries: 20
@@ -105,7 +99,6 @@ services:
     security_opt:
       - no-new-privileges:true
     logging: *default-logging
-
   migration:
     image: "regi.mohsenamani.com/arz-neshan/api:sha-0f539030bdc6edd48129084a233711e9e4b4f5d6"
     profiles: [migration]
@@ -122,7 +115,6 @@ services:
     cap_drop:
       - ALL
     logging: *default-logging
-
   api:
     image: "regi.mohsenamani.com/arz-neshan/api:sha-0f539030bdc6edd48129084a233711e9e4b4f5d6"
     pull_policy: always
@@ -141,13 +133,7 @@ services:
       clamav:
         condition: service_healthy
     healthcheck:
-      test:
-        [
-          "CMD",
-          "node",
-          "-e",
-          "fetch('http://127.0.0.1:3000/api/health/ready').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))",
-        ]
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health/ready').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
       interval: 30s
       timeout: 10s
       retries: 10
@@ -157,10 +143,9 @@ services:
     cap_drop:
       - ALL
     logging: *default-logging
-
   web:
     profiles: [frontends]
-    image: "regi.mohsenamani.com/arz-neshan/web:sha-0000000000000000000000000000000000000000"
+    image: "regi.mohsenamani.com/arz-neshan/web:sha-f5f78145f9586b04288eba9a349dc1fc411a5da2"
     pull_policy: always
     restart: unless-stopped
     stop_grace_period: 30s
@@ -176,15 +161,7 @@ services:
       api:
         condition: service_healthy
     healthcheck: &frontend-healthcheck
-      test:
-        [
-          "CMD",
-          "wget",
-          "--quiet",
-          "--tries=1",
-          "--spider",
-          "http://127.0.0.1:8080/healthz",
-        ]
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1:8080/healthz"]
       interval: 30s
       timeout: 5s
       retries: 5
@@ -194,10 +171,9 @@ services:
     cap_drop:
       - ALL
     logging: *default-logging
-
   platform:
     profiles: [frontends]
-    image: "regi.mohsenamani.com/arz-neshan/platform:sha-0000000000000000000000000000000000000000"
+    image: "regi.mohsenamani.com/arz-neshan/platform:sha-f5f78145f9586b04288eba9a349dc1fc411a5da2"
     pull_policy: always
     init: true
     restart: unless-stopped
@@ -219,8 +195,6 @@ services:
     cap_drop:
       - ALL
     logging: *default-logging
-
-
 volumes:
   attachments_data:
   clamav_database:
