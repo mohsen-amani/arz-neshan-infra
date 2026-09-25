@@ -53,13 +53,27 @@ const defaultServices = execFileSync(
   .sort();
 
 assert(
-  JSON.stringify(defaultServices) === JSON.stringify(["api", "clamav"]),
+  JSON.stringify(defaultServices) ===
+    JSON.stringify(["api", "clamav", "vault-agent"]),
   `Default deployment must contain only API dependencies; found: ${defaultServices.join(",")}`,
 );
 
-const serviceNames = ["api", "web", "platform", "clamav", "migration"];
+const serviceNames = [
+  "api",
+  "web",
+  "platform",
+  "clamav",
+  "migration",
+  "vault-agent",
+];
 const releaseServices = ["api", "frontends"];
-const hardenedServices = ["api", "web", "platform", "migration"];
+const hardenedServices = [
+  "api",
+  "web",
+  "platform",
+  "migration",
+  "vault-agent",
+];
 
 for (const serviceName of serviceNames) {
   assert(
@@ -84,6 +98,80 @@ for (const [key, expected] of Object.entries({
   assert(
     apiEnvironment?.[key] === expected,
     `API production safeguard ${key} must equal ${expected}.`,
+  );
+}
+
+assert(
+  apiEnvironment?.VAULT_TOKEN_FILE === "/run/secrets/vault/token",
+  "The API must read its renewable Vault token from the Agent sink file.",
+);
+assert(
+  !("VAULT_TOKEN" in apiEnvironment),
+  "The API must not receive a static Vault token through its environment.",
+);
+
+const vaultAgent = compose.services["vault-agent"];
+assert(
+  vaultAgent.user === "10001:10001",
+  "Vault Agent must share the API image's unprivileged UID and GID.",
+);
+assert(
+  vaultAgent.environment?.VAULT_ADDR === apiEnvironment.VAULT_ADDR,
+  "Vault Agent and the API must use the same Vault address.",
+);
+assert(
+  !("VAULT_ROLE_ID" in vaultAgent.environment) &&
+    !("VAULT_SECRET_ID" in vaultAgent.environment),
+  "Vault AppRole credentials must be mounted as Compose secrets, not environment variables.",
+);
+assert(
+  compose.secrets?.vault_role_id?.environment === "VAULT_ROLE_ID" &&
+    compose.secrets?.vault_secret_id?.environment === "VAULT_SECRET_ID",
+  "Vault AppRole credentials must be sourced from protected deployment variables.",
+);
+
+const agentSecretSources = new Set(
+  (vaultAgent.secrets ?? []).map((secret) => secret.source),
+);
+assert(
+  agentSecretSources.has("vault_role_id") &&
+    agentSecretSources.has("vault_secret_id"),
+  "Vault Agent must receive both AppRole credential files.",
+);
+
+const tokenVolume = compose.volumes?.vault_agent_token;
+assert(
+  tokenVolume?.driver === "local" &&
+    tokenVolume.driver_opts?.type === "tmpfs" &&
+    tokenVolume.driver_opts?.device === "tmpfs",
+  "The Vault Agent token volume must be memory-backed.",
+);
+
+const apiTokenMount = compose.services.api.volumes?.find(
+  (volume) => volume.target === "/run/secrets/vault",
+);
+assert(
+  apiTokenMount?.source === "vault_agent_token" &&
+    apiTokenMount.read_only === true,
+  "The API must mount the Agent token volume read-only.",
+);
+assert(
+  compose.services.api.depends_on?.["vault-agent"]?.condition ===
+    "service_healthy",
+  "The API must wait for Vault Agent to write its initial token.",
+);
+
+const agentConfig = readFileSync("vault-agent.hcl", "utf8");
+for (const requiredSetting of [
+  /type\s*=\s*"approle"/,
+  /role_id_file_path\s*=\s*"\/run\/secrets\/vault_role_id"/,
+  /secret_id_file_path\s*=\s*"\/run\/secrets\/vault_secret_id"/,
+  /remove_secret_id_file_after_reading\s*=\s*false/,
+  /path\s*=\s*"\/vault\/token\/token"/,
+]) {
+  assert(
+    requiredSetting.test(agentConfig),
+    `Vault Agent configuration is missing: ${requiredSetting}`,
   );
 }
 

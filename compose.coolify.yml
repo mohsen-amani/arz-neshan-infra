@@ -76,12 +76,50 @@ x-api-environment: &api-environment
   ATTACHMENT_ENCRYPTION_SCHEME: vault_transit_aes_256_gcm
   VAULT_ADDR: "${VAULT_ADDR:?VAULT_ADDR is required}"
   VAULT_NAMESPACE: "${VAULT_NAMESPACE:-}"
-  VAULT_TOKEN: "${VAULT_TOKEN:?VAULT_TOKEN is required}"
+  VAULT_TOKEN_FILE: /run/secrets/vault/token
   VAULT_TRANSIT_MOUNT: "${VAULT_TRANSIT_MOUNT:-transit}"
   VAULT_TRANSIT_KEY: "${VAULT_TRANSIT_KEY:-arz-neshan-attachments}"
   VAULT_CA_CERT: "${VAULT_CA_CERT:-}"
   VAULT_TIMEOUT_MS: "${VAULT_TIMEOUT_MS:-5000}"
 services:
+  vault-agent:
+    image: "${VAULT_AGENT_IMAGE:?VAULT_AGENT_IMAGE is required}"
+    pull_policy: always
+    user: "10001:10001"
+    init: true
+    restart: unless-stopped
+    read_only: true
+    command: ["agent", "-config=/vault/config/agent.hcl"]
+    environment:
+      VAULT_ADDR: "${VAULT_ADDR:?VAULT_ADDR is required}"
+      VAULT_NAMESPACE: "${VAULT_NAMESPACE:-}"
+    secrets:
+      - vault_role_id
+      - vault_secret_id
+    volumes:
+      - type: bind
+        source: ./vault-agent.hcl
+        target: /vault/config/agent.hcl
+        read_only: true
+      - type: volume
+        source: vault_agent_token
+        target: /vault/token
+        volume:
+          nocopy: true
+    tmpfs:
+      - /tmp:size=16m,noexec,nosuid,uid=10001,gid=10001,mode=0700
+    healthcheck:
+      test: ["CMD-SHELL", "test -s /vault/token/token"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    logging: *default-logging
+
   clamav:
     image: "${CLAMAV_IMAGE:-clamav/clamav:1.4.5_base}"
     restart: unless-stopped
@@ -127,9 +165,17 @@ services:
     environment: *api-environment
     volumes:
       - attachments_data:/app/data/attachments
+      - type: volume
+        source: vault_agent_token
+        target: /run/secrets/vault
+        read_only: true
+        volume:
+          nocopy: true
     expose:
       - "3000"
     depends_on:
+      vault-agent:
+        condition: service_healthy
       clamav:
         condition: service_healthy
     healthcheck:
@@ -198,3 +244,15 @@ services:
 volumes:
   attachments_data:
   clamav_database:
+  vault_agent_token:
+    driver: local
+    driver_opts:
+      type: tmpfs
+      device: tmpfs
+      o: size=1m,uid=10001,gid=10001,mode=0700
+
+secrets:
+  vault_role_id:
+    environment: VAULT_ROLE_ID
+  vault_secret_id:
+    environment: VAULT_SECRET_ID
