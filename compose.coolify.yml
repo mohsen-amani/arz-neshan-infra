@@ -81,6 +81,10 @@ x-api-environment: &api-environment
   VAULT_TRANSIT_KEY: "${VAULT_TRANSIT_KEY:-arz-neshan-attachments}"
   VAULT_CA_CERT: "${VAULT_CA_CERT:-}"
   VAULT_TIMEOUT_MS: "${VAULT_TIMEOUT_MS:-5000}"
+  VAULT_AGENT_IMAGE: "${VAULT_AGENT_IMAGE:-hashicorp/vault:2.1.1}"
+  VAULT_SECRET_ID: "${VAULT_SECRET_ID:?VAULT_SECRET_ID is required}"
+  VAULT_ROLE_ID: "${VAULT_ROLE_ID:?VAULT_ROLE_ID is required}"
+
 services:
   vault-agent:
     image: "${VAULT_AGENT_IMAGE:?VAULT_AGENT_IMAGE is required}"
