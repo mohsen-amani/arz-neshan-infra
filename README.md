@@ -13,8 +13,8 @@ service discovery (`api:3000`) and makes the selected release auditable in one
 commit.
 
 Deployment is intentionally incremental. With no Compose profile enabled, only
-`api`, `clamav`, and `reminders` start. The `web` and `platform` services use the
-`frontends` profile and can be enabled later without replacing the API resource.
+`api` and `clamav` start. The `web` and `platform` services use the `frontends`
+profile and can be enabled later without replacing the API resource.
 
 ## Release flow
 
@@ -23,17 +23,18 @@ app pull request -> lint, tests, production build, container build
 main push        -> publish sha-<commit> image
                  -> repository_dispatch(image_published)
                  -> update compose.coolify.yml
-                 -> commit main, or open an API migration PR
-                 -> Coolify observes the infra commit and deploys it
+                 -> open or update an infra promotion PR
+human review     -> merge the promotion PR
+                 -> Coolify observes the merged infra commit and deploys it
 ```
 
 The API and frontend workspace release independently. A frontend release updates
 its two images atomically:
 
 ```text
-regi.mohsenamani.com/arz-neshan-infra/api:sha-<commit>
-regi.mohsenamani.com/arz-neshan-infra/web:sha-<commit>
-regi.mohsenamani.com/arz-neshan-infra/platform:sha-<commit>
+regi.mohsenamani.com/arz-neshan/api:sha-<commit>
+regi.mohsenamani.com/arz-neshan/web:sha-<commit>
+regi.mohsenamani.com/arz-neshan/platform:sha-<commit>
 ```
 
 `release-state.json` records the source repository, source SHA, workflow run
@@ -43,12 +44,13 @@ from dispatch payloads.
 
 `scripts/validate-deployment.mjs` verifies the fully rendered Compose model,
 release metadata/image consistency, production safety flags, the absence of host
-port mappings and source builds, and that all API migration jobs use the exact
+port mappings and source builds, and that the API migration job uses the exact
 API image selected for deployment.
 
 ## GitHub setup
 
-Add these Actions secrets to the API and frontend repositories. Organization
+Add the registry credentials to the API, frontend, and infra repositories. Add
+the dispatch token only to the API and frontend repositories. Organization
 secrets restricted to those repositories may be used instead of duplicating them.
 
 | Secret                 | Value                                                                                        |
@@ -63,13 +65,13 @@ The web Docker build deliberately fails when it is missing. Keep the matching
 `ADMIN_BASE_DOMAIN` hostname on that Turnstile widget; Cloudflare applies that
 authorization to its subdomains too.
 
-The infra workflow uses its repository-scoped `GITHUB_TOKEN`. In the infra
-repository settings:
+The infra workflow uses its repository-scoped `GITHUB_TOKEN`. Keep its default
+permission read-only and allow GitHub Actions to create and approve pull requests.
+The promotion workflow explicitly requests only the write permissions it needs.
 
-1. Give Actions read/write workflow permissions.
-2. Allow GitHub Actions to create and approve pull requests.
-3. Configure the `main` ruleset so the release workflow may push validated
-   non-migration image updates. Keep human review required for migration PRs.
+This private repository uses GitHub Free, so branch protection cannot be
+enforced. Promotion workflows never push directly to `main`. Review and merge
+every promotion PR manually, and avoid manual direct pushes to `main`.
 
 The repositories and their allowed service identities are:
 
@@ -102,9 +104,8 @@ In Coolify:
    placeholder. Mark database, JWT, Turnstile, SMS, internal-jobs, HesabPay,
    platform-owner, SMTP, S3, and Vault credentials as secrets.
 4. For the API-first deployment, attach only the exact API hostname to
-   `api:3000`. Do not expose ClamAV, reminders, or either migration job.
-5. Do not assign a domain or public port to `clamav`, `reminders`, `migration`,
-   or `financial-migration`.
+   `api:3000`. Do not expose ClamAV or the migration job.
+5. Do not assign a domain or public port to `clamav` or `migration`.
 6. Preserve `attachments_data` when local attachment storage is selected.
 
 Do not select the Dockerfile build pack and do not paste the Compose definition
@@ -124,21 +125,15 @@ remain same-origin.
 
 ## PostgreSQL setup
 
-Provision the control database and financial shard independently from this
-application stack. They may be Coolify database resources or externally managed
-PostgreSQL instances, but neither should have a public port unless access is
-restricted to explicitly trusted sources.
+Provision the PostgreSQL database independently from this application stack. It
+may be a Coolify database resource or an externally managed PostgreSQL instance,
+but it should not have a public port unless access is restricted to explicitly
+trusted sources.
 
-The control database uses the `DATABASE_*` application role. The financial shard
-uses two distinct roles:
-
-- `FINANCIAL_DATABASE_MIGRATION_USER` owns and migrates the financial schema.
-- `FINANCIAL_DATABASE_USER` is the runtime API role. It must not be a superuser,
-  own the migrated tables, or have `BYPASSRLS`.
-
-Set all values from `.env.example` in Coolify. The API readiness endpoint checks
-both database connections. A deployment cannot become healthy when either
-database is missing, unreachable, or has invalid credentials.
+The API and migration job use the `DATABASE_*` settings from `.env.example`.
+The API readiness endpoint checks the configured database connection, so a
+deployment cannot become healthy when it is missing, unreachable, or has invalid
+credentials.
 
 ## API-first bootstrap
 
@@ -202,15 +197,14 @@ that is not true, split the change into separate releases. Do not merge the
 migration-gated PR while automatic deployment is enabled unless this
 compatibility has been explicitly verified.
 
-At the approved bootstrap or release point, run both inactive migration jobs
+At the approved bootstrap or release point, run the inactive migration job
 from Coolify's deployment directory with the same environment Coolify uses:
 
 ```sh
 docker compose -f compose.coolify.yml --profile migration run --rm migration
-docker compose -f compose.coolify.yml --profile migration run --rm financial-migration
 ```
 
-Confirm both jobs exit successfully before considering the database release
+Confirm the job exits successfully before considering the database release
 complete. On first bootstrap, migrations must be complete before public traffic
 is attached. For an additive release where the target API can safely start on
 the old schema, it may be deployed first and migrations run immediately after;
@@ -227,7 +221,7 @@ clean attachment upload/download, and the recorded client IP.
 
 To roll back, revert the relevant infra promotion commit or commit the previous
 immutable image tag in both `compose.coolify.yml` and `release-state.json`.
-For API rollback, keep `api`, `migration`, and `financial-migration` on the same
-tag. Coolify deploys the revert like any other infra change. Retain registry
-images long enough for the required rollback window. Never automatically reverse
-a database migration during an image rollback.
+For API rollback, keep `api` and `migration` on the same tag. Coolify deploys the
+revert like any other infra change. Retain registry images long enough for the
+required rollback window. Never automatically reverse a database migration
+during an image rollback.
