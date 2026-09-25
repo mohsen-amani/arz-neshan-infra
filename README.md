@@ -23,8 +23,9 @@ app pull request -> lint, tests, production build, container build
 main push        -> publish sha-<commit> image
                  -> repository_dispatch(image_published)
                  -> update compose.coolify.yml
-                 -> commit main, or open an API migration PR
-                 -> Coolify observes the infra commit and deploys it
+                 -> open or update an infra promotion PR
+human review     -> merge the promotion PR
+                 -> Coolify observes the merged infra commit and deploys it
 ```
 
 The API and frontend workspace release independently. A frontend release updates
@@ -64,13 +65,13 @@ The web Docker build deliberately fails when it is missing. Keep the matching
 `ADMIN_BASE_DOMAIN` hostname on that Turnstile widget; Cloudflare applies that
 authorization to its subdomains too.
 
-The infra workflow uses its repository-scoped `GITHUB_TOKEN`. In the infra
-repository settings:
+The infra workflow uses its repository-scoped `GITHUB_TOKEN`. Keep its default
+permission read-only and allow GitHub Actions to create and approve pull requests.
+The promotion workflow explicitly requests only the write permissions it needs.
 
-1. Give Actions read/write workflow permissions.
-2. Allow GitHub Actions to create and approve pull requests.
-3. Configure the `main` ruleset so the release workflow may push validated
-   non-migration image updates. Keep human review required for migration PRs.
+This private repository uses GitHub Free, so branch protection cannot be
+enforced. Promotion workflows never push directly to `main`. Review and merge
+every promotion PR manually, and avoid manual direct pushes to `main`.
 
 The repositories and their allowed service identities are:
 
