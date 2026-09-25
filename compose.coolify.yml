@@ -1,8 +1,9 @@
 name: arz-neshan
 
-# The default deployment is API-only: expose api.example.com through api:3000.
-# Web and platform are dormant until the `frontends` profile is enabled. Migration
-# jobs use their own explicit profile; reminders and ClamAV always remain private.
+# The default deployment contains the API and its private ClamAV dependency.
+# Web and platform remain dormant until the `frontends` profile is enabled.
+# Database migrations run only through the explicit `migration` profile.
+
 
 x-logging: &default-logging
   driver: json-file
@@ -87,8 +88,43 @@ x-api-environment: &api-environment
   VAULT_TIMEOUT_MS: "${VAULT_TIMEOUT_MS:-5000}"
 
 services:
+  clamav:
+    image: "${CLAMAV_IMAGE:-clamav/clamav:1.4.5_base}"
+    restart: unless-stopped
+    stop_grace_period: 30s
+    volumes:
+      - clamav_database:/var/lib/clamav
+    expose:
+      - "3310"
+    healthcheck:
+      test: [ "CMD-SHELL", "clamdscan --ping=1 >/dev/null 2>&1" ]
+      interval: 30s
+      timeout: 10s
+      retries: 20
+      start_period: 120s
+    security_opt:
+      - no-new-privileges:true
+    logging: *default-logging
+
+  migration:
+    image: "regi.mohsenamani.com/arz-neshan/api:sha-0f539030bdc6edd48129084a233711e9e4b4f5d6"
+    profiles: [migration]
+    pull_policy: always
+    restart: "no"
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,noexec,nosuid
+    environment: *database-environment
+    command: ["npm", "run", "migration:run:prod"]
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    logging: *default-logging
+
   api:
-    image: "regi.mohsenamani.com/arz-neshan-infra/api:v1.0.0"
+    image: "regi.mohsenamani.com/arz-neshan/api:sha-0f539030bdc6edd48129084a233711e9e4b4f5d6"
     pull_policy: always
     init: true
     restart: unless-stopped
@@ -158,93 +194,32 @@ services:
     cap_drop:
       - ALL
     logging: *default-logging
-#
-#  platform:
-#    profiles: [frontends]
-#    image: "regi.mohsenamani.com/arz-neshan-infra/platform:sha-0000000000000000000000000000000000000000"
-#    pull_policy: always
-#    init: true
-#    restart: unless-stopped
-#    stop_grace_period: 30s
-#    read_only: true
-#    environment:
-#      API_UPSTREAM: api:3000
-#    tmpfs:
-#      - /config:size=16m,noexec,nosuid
-#      - /data:size=16m,noexec,nosuid
-#    expose:
-#      - "8080"
-#    depends_on:
-#      api:
-#        condition: service_healthy
-#    healthcheck: *frontend-healthcheck
-#    security_opt:
-#      - no-new-privileges:true
-#    cap_drop:
-#      - ALL
-#    logging: *default-logging
-#
-#  reminders:
-#    image: curlimages/curl:8.16.0
-#    init: true
-#    restart: unless-stopped
-#    read_only: true
-#    environment:
-#      INTERNAL_JOBS_TOKEN: "${INTERNAL_JOBS_TOKEN:?INTERNAL_JOBS_TOKEN is required}"
-#      REMINDER_INITIAL_DELAY_SECONDS: "${REMINDER_INITIAL_DELAY_SECONDS:-300}"
-#    command:
-#      - /bin/sh
-#      - -ec
-#      - |
-#        sleep "$${REMINDER_INITIAL_DELAY_SECONDS}"
-#        while true; do
-#          curl --fail --silent --show-error --request POST --header "Authorization: Bearer $${INTERNAL_JOBS_TOKEN}" http://api:3000/api/internal/jobs/subscription-reminders
-#          sleep 86400
-#        done
-#    depends_on:
-#      api:
-#        condition: service_healthy
-#    security_opt:
-#      - no-new-privileges:true
-#    cap_drop:
-#      - ALL
-#    logging: *default-logging
-#
-  clamav:
-    image: "${CLAMAV_IMAGE:-clamav/clamav:1.4.5_base}"
+
+  platform:
+    profiles: [frontends]
+    image: "regi.mohsenamani.com/arz-neshan-infra/platform:sha-0000000000000000000000000000000000000000"
+    pull_policy: always
+    init: true
     restart: unless-stopped
     stop_grace_period: 30s
-    volumes:
-      - clamav_database:/var/lib/clamav
+    read_only: true
+    environment:
+      API_UPSTREAM: api:3000
+    tmpfs:
+      - /config:size=16m,noexec,nosuid
+      - /data:size=16m,noexec,nosuid
     expose:
-      - "3310"
-    healthcheck:
-      test: ["CMD-SHELL", "clamdscan --ping=1 >/dev/null 2>&1"]
-      interval: 30s
-      timeout: 10s
-      retries: 20
-      start_period: 120s
+      - "8080"
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck: *frontend-healthcheck
     security_opt:
       - no-new-privileges:true
+    cap_drop:
+      - ALL
     logging: *default-logging
-#
-#  # Operators run this profile explicitly after reviewing a release's migrations.
-#  migration:
-#    image: "regi.mohsenamani.com/arz-neshan-infra/api:sha-0000000000000000000000000000000000000000"
-#    profiles: [migration]
-#    pull_policy: always
-#    restart: "no"
-#    init: true
-#    read_only: true
-#    tmpfs:
-#      - /tmp:size=64m,noexec,nosuid
-#    environment: *database-environment
-#    command: ["npm", "run", "migration:run:prod"]
-#    security_opt:
-#      - no-new-privileges:true
-#    cap_drop:
-#      - ALL
-#    logging: *default-logging
+
 
 volumes:
   attachments_data:
