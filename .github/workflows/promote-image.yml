@@ -97,8 +97,8 @@ jobs:
               image="regi.mohsenamani.com/arz-neshan/api:${tag}"
               ;;
             frontends:mohsen-amani/arz-neshan-frontends)
-              web_image="regi.mohsenamani.com/arz-neshan-infra/web:${tag}"
-              platform_image="regi.mohsenamani.com/arz-neshan-infra/platform:${tag}"
+              web_image="regi.mohsenamani.com/arz-neshan/web:${tag}"
+              platform_image="regi.mohsenamani.com/arz-neshan/platform:${tag}"
               ;;
             *)
               echo "::error::The service/source repository mapping is not allowed."

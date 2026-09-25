@@ -33,8 +33,8 @@ its two images atomically:
 
 ```text
 regi.mohsenamani.com/arz-neshan/api:sha-<commit>
-regi.mohsenamani.com/arz-neshan-infra/web:sha-<commit>
-regi.mohsenamani.com/arz-neshan-infra/platform:sha-<commit>
+regi.mohsenamani.com/arz-neshan/web:sha-<commit>
+regi.mohsenamani.com/arz-neshan/platform:sha-<commit>
 ```
 
 `release-state.json` records the source repository, source SHA, workflow run

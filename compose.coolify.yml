@@ -160,7 +160,7 @@ services:
 
   web:
     profiles: [frontends]
-    image: "regi.mohsenamani.com/arz-neshan-infra/web:sha-0000000000000000000000000000000000000000"
+    image: "regi.mohsenamani.com/arz-neshan/web:sha-0000000000000000000000000000000000000000"
     pull_policy: always
     restart: unless-stopped
     stop_grace_period: 30s
@@ -197,7 +197,7 @@ services:
 
   platform:
     profiles: [frontends]
-    image: "regi.mohsenamani.com/arz-neshan-infra/platform:sha-0000000000000000000000000000000000000000"
+    image: "regi.mohsenamani.com/arz-neshan/platform:sha-0000000000000000000000000000000000000000"
     pull_policy: always
     init: true
     restart: unless-stopped

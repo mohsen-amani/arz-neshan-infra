@@ -163,10 +163,7 @@ for (const serviceName of releaseServices) {
   const imageServices =
     serviceName === "frontends" ? ["web", "platform"] : ["api"];
   for (const imageService of imageServices) {
-    const imageRepository =
-      imageService === "api"
-        ? "regi.mohsenamani.com/arz-neshan/api"
-        : `regi.mohsenamani.com/arz-neshan-infra/${imageService}`;
+    const imageRepository = `regi.mohsenamani.com/arz-neshan/${imageService}`;
     const expectedImage = `${imageRepository}:${state.tag}`;
     assert(
       compose.services[imageService].image === expectedImage,
