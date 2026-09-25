@@ -12,9 +12,10 @@ operator console. Keeping them in one Compose project preserves private API
 service discovery (`api:3000`) and makes the selected release auditable in one
 commit.
 
-Deployment is intentionally incremental. With no Compose profile enabled, only
-`api` and `clamav` start. The `web` and `platform` services use the `frontends`
-profile and can be enabled later without replacing the API resource.
+Deployment is intentionally incremental. With no Compose profile enabled,
+`vault-agent`, `api`, and `clamav` start. The `web` and `platform` services use
+the `frontends` profile and can be enabled later without replacing the API
+resource.
 
 ## Release flow
 
@@ -44,8 +45,8 @@ from dispatch payloads.
 
 `scripts/validate-deployment.mjs` verifies the fully rendered Compose model,
 release metadata/image consistency, production safety flags, the absence of host
-port mappings and source builds, and that the API migration job uses the exact
-API image selected for deployment.
+port mappings and source builds, the Vault Agent authentication boundary, and
+that the API migration job uses the exact API image selected for deployment.
 
 ## GitHub setup
 
@@ -102,7 +103,7 @@ In Coolify:
    automatic deployment for infra-repository pushes after bootstrap succeeds.
 3. Copy `.env.example` into Coolify's environment editor and replace every
    placeholder. Mark database, JWT, Turnstile, SMS, internal-jobs, HesabPay,
-   platform-owner, SMTP, S3, and Vault credentials as secrets.
+   platform-owner, SMTP, S3, and Vault AppRole credentials as secrets.
 4. For the API-first deployment, attach only the exact API hostname to
    `api:3000`. Do not expose ClamAV or the migration job.
 5. Do not assign a domain or public port to `clamav` or `migration`.
@@ -135,6 +136,36 @@ The API readiness endpoint checks the configured database connection, so a
 deployment cannot become healthy when it is missing, unreachable, or has invalid
 credentials.
 
+## Vault Transit authentication
+
+Vault runs as an independently managed service. The application stack connects
+to its public, trusted HTTPS endpoint but never receives a root token or a static
+operator token.
+
+Enable AppRole and create an `arz-neshan-api` role bound only to the
+`arz-neshan-api` Transit policy. Configure that role to issue renewable service
+tokens with `token_num_uses=0`; Vault Agent auto-auth does not support tokens
+with a limited number of uses.
+
+Store the resulting values only in Coolify's protected runtime environment:
+
+```text
+VAULT_ADDR=https://vault.example.com
+VAULT_ROLE_ID=<AppRole role ID>
+VAULT_SECRET_ID=<AppRole secret ID>
+```
+
+Do not define `VAULT_TOKEN`. Compose exposes the AppRole credential values only
+to `vault-agent` as secret files. The agent authenticates, renews its periodic
+token, and writes it to the memory-backed `vault_agent_token` volume. The API
+mounts that volume read-only and reads the current value through
+`VAULT_TOKEN_FILE` on every Transit operation. The API waits for the agent's
+token-file health check before starting.
+
+`VAULT_AGENT_IMAGE` must remain pinned to an explicit reviewed version. The
+example value is not an instruction to upgrade the independently deployed Vault
+server without following Vault's upgrade guidance.
+
 ## API-first bootstrap
 
 The committed zero-SHA image tags are validation placeholders and must never be
@@ -148,9 +179,9 @@ deployed.
    first API release is migration-gated; review and merge its infra PR.
 3. Confirm the API zero-SHA record was replaced and pull that exact image from
    the deployment server. The frontend release may remain at its zero-SHA state.
-4. Provision both databases, Vault, SMTP, SMS gateway, and attachment storage;
-   enter the production variables in Coolify.
-5. Run both database migrations at the approved bootstrap point, then deploy and
+4. Provision the production database, Vault, SMTP, SMS gateway, and attachment
+   storage; enter the production variables in Coolify.
+5. Run the database migrations at the approved bootstrap point, then deploy and
    verify the application manually.
 6. Attach `https://api.example.com:3000` to the `api` component and verify
    `/api/health/live` and `/api/health/ready`.
