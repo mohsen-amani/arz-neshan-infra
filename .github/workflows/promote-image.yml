@@ -35,6 +35,14 @@ on:
         description: API image digest in sha256:<64 lowercase hex> format
         required: false
         type: string
+      web_digest:
+        description: Web image digest in sha256:<64 lowercase hex> format
+        required: false
+        type: string
+      platform_digest:
+        description: Platform image digest in sha256:<64 lowercase hex> format
+        required: false
+        type: string
 
 permissions:
   contents: write
@@ -65,6 +73,8 @@ jobs:
           MANUAL_TAG: ${{ inputs.tag }}
           MANUAL_MIGRATIONS_CHANGED: ${{ inputs.migrations_changed }}
           MANUAL_IMAGE_DIGEST: ${{ inputs.image_digest }}
+          MANUAL_WEB_DIGEST: ${{ inputs.web_digest }}
+          MANUAL_PLATFORM_DIGEST: ${{ inputs.platform_digest }}
         run: |
           set -euo pipefail
 
@@ -79,6 +89,8 @@ jobs:
               if . == true then "true" elif . == false then "false" else empty end
             ' "$GITHUB_EVENT_PATH")"
             image_digest="$(jq -r '.client_payload.image_digest // empty' "$GITHUB_EVENT_PATH")"
+            web_digest="$(jq -r '.client_payload.web_digest // empty' "$GITHUB_EVENT_PATH")"
+            platform_digest="$(jq -r '.client_payload.platform_digest // empty' "$GITHUB_EVENT_PATH")"
           else
             service="$MANUAL_SERVICE"
             source_repository="$MANUAL_SOURCE_REPOSITORY"
@@ -87,6 +99,8 @@ jobs:
             tag="$MANUAL_TAG"
             migrations_changed="${MANUAL_MIGRATIONS_CHANGED,,}"
             image_digest="$MANUAL_IMAGE_DIGEST"
+            web_digest="$MANUAL_WEB_DIGEST"
+            platform_digest="$MANUAL_PLATFORM_DIGEST"
           fi
 
           image=
@@ -135,9 +149,23 @@ jobs:
               echo "::error::API promotions require a valid sha256 image_digest."
               exit 1
             fi
-          elif [[ -n "$image_digest" ]]; then
-            echo "::error::Frontend promotions must not provide a single API image digest."
-            exit 1
+            if [[ -n "$web_digest" || -n "$platform_digest" ]]; then
+              echo "::error::API promotions must not provide frontend image digests."
+              exit 1
+            fi
+          else
+            if [[ -n "$image_digest" ]]; then
+              echo "::error::Frontend promotions must not provide an API image digest."
+              exit 1
+            fi
+            if [[ ! "$web_digest" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+              echo "::error::Frontend promotions require a valid sha256 web_digest."
+              exit 1
+            fi
+            if [[ ! "$platform_digest" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+              echo "::error::Frontend promotions require a valid sha256 platform_digest."
+              exit 1
+            fi
           fi
           {
             echo "service=$service"
@@ -150,6 +178,8 @@ jobs:
             echo "platform_image=$platform_image"
             echo "migrations_changed=$migrations_changed"
             echo "image_digest=$image_digest"
+            echo "web_digest=$web_digest"
+            echo "platform_digest=$platform_digest"
           } >> "$GITHUB_OUTPUT"
 
       - name: Select promotion branch
@@ -239,11 +269,11 @@ jobs:
           echo "promote=true" >> "$GITHUB_OUTPUT"
 
       - name: Set up Docker Buildx
-        if: steps.freshness.outputs.promote == 'true' && steps.payload.outputs.service == 'api'
+        if: steps.freshness.outputs.promote == 'true'
         uses: docker/setup-buildx-action@v4
 
       - name: Log in to Docker registry
-        if: steps.freshness.outputs.promote == 'true' && steps.payload.outputs.service == 'api'
+        if: steps.freshness.outputs.promote == 'true'
         uses: docker/login-action@v4
         with:
           registry: regi.mohsenamani.com
@@ -267,6 +297,37 @@ jobs:
             echo "::error::Published image digest ${actual_digest:-missing} does not match ${EXPECTED_DIGEST}."
             exit 1
           fi
+
+      - name: Verify frontend image digests
+        if: steps.freshness.outputs.promote == 'true' && steps.payload.outputs.service == 'frontends'
+        shell: bash
+        env:
+          WEB_IMAGE: ${{ steps.payload.outputs.web_image }}
+          WEB_DIGEST: ${{ steps.payload.outputs.web_digest }}
+          PLATFORM_IMAGE: ${{ steps.payload.outputs.platform_image }}
+          PLATFORM_DIGEST: ${{ steps.payload.outputs.platform_digest }}
+        run: |
+          set -euo pipefail
+
+          verify_digest() {
+            local label="$1"
+            local image="$2"
+            local expected_digest="$3"
+            local actual_digest
+
+            actual_digest="$(
+              docker buildx imagetools inspect "$image" |
+                awk '$1 == "Digest:" { print $2; exit }'
+            )"
+
+            if [[ -z "$actual_digest" || "$actual_digest" != "$expected_digest" ]]; then
+              echo "::error::${label} image digest ${actual_digest:-missing} does not match ${expected_digest}."
+              exit 1
+            fi
+          }
+
+          verify_digest "Web" "$WEB_IMAGE" "$WEB_DIGEST"
+          verify_digest "Platform" "$PLATFORM_IMAGE" "$PLATFORM_DIGEST"
 
       - name: Update frontend images
         if: steps.freshness.outputs.promote == 'true' && steps.payload.outputs.service == 'frontends'
@@ -347,6 +408,8 @@ jobs:
           SOURCE_SHA: ${{ steps.payload.outputs.source_sha }}
           TAG: ${{ steps.payload.outputs.tag }}
           IMAGE_DIGEST: ${{ steps.payload.outputs.image_digest }}
+          WEB_DIGEST: ${{ steps.payload.outputs.web_digest }}
+          PLATFORM_DIGEST: ${{ steps.payload.outputs.platform_digest }}
           MIGRATIONS_CHANGED: ${{ steps.payload.outputs.migrations_changed }}
         run: |
           set -euo pipefail
@@ -361,6 +424,9 @@ jobs:
 
             if [[ "$SERVICE" == "api" ]]; then
               echo "- Image digest: \`${IMAGE_DIGEST}\`"
+            else
+              echo "- Web image digest: \`${WEB_DIGEST}\`"
+              echo "- Platform image digest: \`${PLATFORM_DIGEST}\`"
             fi
 
             echo
