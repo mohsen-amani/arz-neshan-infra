@@ -31,6 +31,10 @@ on:
         required: true
         default: false
         type: boolean
+      image_digest:
+        description: API image digest in sha256:<64 lowercase hex> format
+        required: false
+        type: string
 
 permissions:
   contents: write
@@ -60,6 +64,7 @@ jobs:
           MANUAL_SOURCE_RUN_NUMBER: ${{ inputs.source_run_number }}
           MANUAL_TAG: ${{ inputs.tag }}
           MANUAL_MIGRATIONS_CHANGED: ${{ inputs.migrations_changed }}
+          MANUAL_IMAGE_DIGEST: ${{ inputs.image_digest }}
         run: |
           set -euo pipefail
 
@@ -73,6 +78,7 @@ jobs:
               .client_payload.migrations_changed |
               if . == true then "true" elif . == false then "false" else empty end
             ' "$GITHUB_EVENT_PATH")"
+            image_digest="$(jq -r '.client_payload.image_digest // empty' "$GITHUB_EVENT_PATH")"
           else
             service="$MANUAL_SERVICE"
             source_repository="$MANUAL_SOURCE_REPOSITORY"
@@ -80,6 +86,7 @@ jobs:
             source_run_number="$MANUAL_SOURCE_RUN_NUMBER"
             tag="$MANUAL_TAG"
             migrations_changed="${MANUAL_MIGRATIONS_CHANGED,,}"
+            image_digest="$MANUAL_IMAGE_DIGEST"
           fi
 
           image=
@@ -123,7 +130,15 @@ jobs:
             echo "::error::Only API releases may declare database migrations."
             exit 1
           fi
-
+          if [[ "$service" == "api" ]]; then
+            if [[ ! "$image_digest" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+              echo "::error::API promotions require a valid sha256 image_digest."
+              exit 1
+            fi
+          elif [[ -n "$image_digest" ]]; then
+            echo "::error::Frontend promotions must not provide a single API image digest."
+            exit 1
+          fi
           {
             echo "service=$service"
             echo "source_repository=$source_repository"
@@ -134,6 +149,7 @@ jobs:
             echo "web_image=$web_image"
             echo "platform_image=$platform_image"
             echo "migrations_changed=$migrations_changed"
+            echo "image_digest=$image_digest"
           } >> "$GITHUB_OUTPUT"
 
       - name: Select promotion branch
@@ -224,6 +240,36 @@ jobs:
 
           echo "promote=true" >> "$GITHUB_OUTPUT"
 
+      - name: Set up Docker Buildx
+        if: steps.freshness.outputs.promote == 'true' && steps.payload.outputs.service == 'api'
+        uses: docker/setup-buildx-action@v4
+
+      - name: Log in to Docker registry
+        if: steps.freshness.outputs.promote == 'true' && steps.payload.outputs.service == 'api'
+        uses: docker/login-action@v4
+        with:
+          registry: regi.mohsenamani.com
+          username: ${{ secrets.REGISTRY_USERNAME }}
+          password: ${{ secrets.REGISTRY_PASSWORD }}
+
+      - name: Verify API image digest
+        if: steps.freshness.outputs.promote == 'true' && steps.payload.outputs.service == 'api'
+        shell: bash
+        env:
+          IMAGE: ${{ steps.payload.outputs.image }}
+          EXPECTED_DIGEST: ${{ steps.payload.outputs.image_digest }}
+        run: |
+          set -euo pipefail
+          actual_digest="$(
+            docker buildx imagetools inspect "$IMAGE" |
+              awk '$1 == "Digest:" { print $2; exit }'
+          )"
+
+          if [[ -z "$actual_digest" || "$actual_digest" != "$EXPECTED_DIGEST" ]]; then
+            echo "::error::Published image digest ${actual_digest:-missing} does not match ${EXPECTED_DIGEST}."
+            exit 1
+          fi
+
       - name: Update frontend images
         if: steps.freshness.outputs.promote == 'true' && steps.payload.outputs.service == 'frontends'
         uses: mikefarah/yq@v4.53.2
@@ -246,8 +292,7 @@ jobs:
           cmd: >-
             yq -i
             '.services.api.image = strenv(IMAGE) |
-            .services.migration.image = strenv(IMAGE) |
-            .services["financial-migration"].image = strenv(IMAGE)'
+            .services.migration.image = strenv(IMAGE)'
             compose.coolify.yml
 
       - name: Update release metadata
@@ -322,7 +367,7 @@ jobs:
             echo "- Verify a restorable PostgreSQL backup."
             echo "- Confirm the release follows expand-and-contract compatibility."
             echo "- Confirm both the old and new API tolerate the migration transition."
-            echo "- Run both jobs in the explicit \`migration\` Compose profile at the approved release point."
+            echo "- Run the \`migration\` Compose profile job at the approved release point."
           } > "$body_file"
 
           title="deploy(api): migration-gated release ${TAG}"
