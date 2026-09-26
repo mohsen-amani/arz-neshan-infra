@@ -14,7 +14,11 @@ x-database-environment: &database-environment
   DATABASE_PASS: "${DATABASE_PASS:?DATABASE_PASS is required}"
   DATABASE_NAME: "${DATABASE_NAME:?DATABASE_NAME is required}"
 x-api-environment: &api-environment
-  !!merge <<: [*database-environment]
+  DATABASE_HOST: "${DATABASE_HOST:?DATABASE_HOST is required}"
+  DATABASE_PORT: "${DATABASE_PORT:-5432}"
+  DATABASE_USER: "${DATABASE_USER:?DATABASE_USER is required}"
+  DATABASE_PASS: "${DATABASE_PASS:?DATABASE_PASS is required}"
+  DATABASE_NAME: "${DATABASE_NAME:?DATABASE_NAME is required}"
   NODE_ENV: production
   PORT: "3000"
   APP_NAME: "${APP_NAME:-Arz Neshan}"
@@ -81,9 +85,6 @@ x-api-environment: &api-environment
   VAULT_TRANSIT_KEY: "${VAULT_TRANSIT_KEY:-arz-neshan-attachments}"
   VAULT_CA_CERT: "${VAULT_CA_CERT:-}"
   VAULT_TIMEOUT_MS: "${VAULT_TIMEOUT_MS:-5000}"
-  VAULT_AGENT_IMAGE: "${VAULT_AGENT_IMAGE:-hashicorp/vault:2.1.1}"
-  VAULT_SECRET_ID: "${VAULT_SECRET_ID:?VAULT_SECRET_ID is required}"
-  VAULT_ROLE_ID: "${VAULT_ROLE_ID:?VAULT_ROLE_ID is required}"
 
 services:
   vault-agent:
