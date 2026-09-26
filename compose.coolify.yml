@@ -87,6 +87,33 @@ x-api-environment: &api-environment
   VAULT_TIMEOUT_MS: "${VAULT_TIMEOUT_MS:-5000}"
 
 services:
+  vault-token-init:
+    image: alpine:3.22
+    pull_policy: always
+    user: "0:0"
+    restart: "no"
+    read_only: true
+    command:
+      - /bin/sh
+      - -ec
+      - |
+        chown 0:0 /vault/token
+        chmod 0700 /vault/token
+        chown 10001:10001 /vault/token
+    volumes:
+      - type: volume
+        source: vault_agent_token
+        target: /vault/token
+        volume:
+          nocopy: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+    logging: *default-logging
+
   vault-agent:
     image: "${VAULT_AGENT_IMAGE:?VAULT_AGENT_IMAGE is required}"
     pull_policy: always
@@ -117,6 +144,9 @@ services:
           nocopy: true
     tmpfs:
       - /tmp:size=16m,noexec,nosuid,uid=10001,gid=10001,mode=0700
+    depends_on:
+      vault-token-init:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD-SHELL", "test -s /vault/token/token"]
       interval: 10s

@@ -161,10 +161,19 @@ no application build stage that should receive deployment credentials.
 
 Do not define `VAULT_TOKEN`. Compose exposes the AppRole credential values only
 to `vault-agent` as secret files. The agent authenticates, renews its periodic
-token, and writes it to the memory-backed `vault_agent_token` volume. The API
-mounts that volume read-only and reads the current value through
-`VAULT_TOKEN_FILE` on every Transit operation. The API waits for the agent's
-token-file health check before starting.
+token, and writes it to the dedicated `vault_agent_token` volume. The volume is
+configured as tmpfs for Compose implementations that preserve local-driver
+options. Coolify can create it as a regular local volume instead, so production
+must treat its contents as sensitive host data. A stopped Agent no longer
+renews its periodic token, limiting the lifetime of a token recovered from an
+old host snapshot. The API mounts the volume read-only and reads the current
+value through `VAULT_TOKEN_FILE` on every Transit operation.
+
+The API waits for the Agent's token-file health check before starting. The
+one-shot `vault-token-init` service sets the volume directory to UID/GID `10001`
+before the unprivileged Agent starts. This initialization is required because
+Coolify can create a named volume without preserving its requested driver
+ownership options.
 
 The Agent HCL is embedded as a Compose `config`. Keep it inline: Coolify's
 processed deployment directory contains the Compose model but does not reliably
