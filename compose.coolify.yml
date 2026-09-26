@@ -239,7 +239,7 @@ services:
     logging: *default-logging
 
   web:
-    image: "regi.mohsenamani.com/arz-neshan/web:sha-f5f78145f9586b04288eba9a349dc1fc411a5da2"
+    image: "regi.mohsenamani.com/arz-neshan/web:sha-139da20c419728ce208fcf238be99e96862f7b43"
     pull_policy: always
     restart: unless-stopped
     stop_grace_period: 30s
@@ -272,7 +272,7 @@ services:
     logging: *default-logging
 
   platform:
-    image: "regi.mohsenamani.com/arz-neshan/platform:sha-f5f78145f9586b04288eba9a349dc1fc411a5da2"
+    image: "regi.mohsenamani.com/arz-neshan/platform:sha-139da20c419728ce208fcf238be99e96862f7b43"
     pull_policy: always
     init: true
     restart: unless-stopped
