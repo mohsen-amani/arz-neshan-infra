@@ -254,6 +254,9 @@ services:
     depends_on:
       api:
         condition: service_healthy
+    networks:
+      - default
+      - coolify
     healthcheck: &frontend-healthcheck
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1:8080/healthz"]
       interval: 30s
@@ -283,6 +286,9 @@ services:
     depends_on:
       api:
         condition: service_healthy
+    networks:
+      - default
+      - coolify
     healthcheck: *frontend-healthcheck
     security_opt:
       - no-new-privileges:true
