@@ -251,7 +251,7 @@ services:
       - /config:size=16m,noexec,nosuid
       - /data:size=16m,noexec,nosuid
     expose:
-      - "8080"
+      - "3000"
     depends_on:
       api:
         condition: service_healthy
