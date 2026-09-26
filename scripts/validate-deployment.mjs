@@ -60,7 +60,7 @@ const defaultServices = execFileSync(
 
 assert(
   JSON.stringify(defaultServices) ===
-    JSON.stringify(["api", "clamav", "vault-agent"]),
+    JSON.stringify(["api", "clamav", "vault-agent", "vault-token-init"]),
   `Default deployment must contain only API dependencies; found: ${defaultServices.join(",")}`,
 );
 
@@ -71,6 +71,7 @@ const serviceNames = [
   "clamav",
   "migration",
   "vault-agent",
+  "vault-token-init",
 ];
 const releaseServices = ["api", "frontends"];
 const hardenedServices = [
@@ -79,8 +80,15 @@ const hardenedServices = [
   "platform",
   "migration",
   "vault-agent",
+  "vault-token-init",
 ];
-const readOnlyServices = ["api", "web", "platform", "migration"];
+const readOnlyServices = [
+  "api",
+  "web",
+  "platform",
+  "migration",
+  "vault-token-init",
+];
 
 for (const serviceName of serviceNames) {
   assert(
@@ -120,6 +128,17 @@ assert(
 );
 
 const vaultAgent = compose.services["vault-agent"];
+const vaultTokenInit = compose.services["vault-token-init"];
+assert(
+  vaultTokenInit.user === "0:0" &&
+    vaultTokenInit.cap_add?.includes("CHOWN"),
+  "The token-volume initializer must have only the ownership capability it needs.",
+);
+assert(
+  vaultAgent.depends_on?.["vault-token-init"]?.condition ===
+    "service_completed_successfully",
+  "Vault Agent must wait for token-volume ownership initialization.",
+);
 assert(
   vaultAgent.user === "10001:10001",
   "Vault Agent must share the API image's unprivileged UID and GID.",
@@ -148,6 +167,14 @@ assert(
   "Vault Agent must receive both AppRole credential files.",
 );
 
+const agentConfigMount = vaultAgent.configs?.find(
+  (config) => config.target === "/vault/config/agent.hcl",
+);
+assert(
+  agentConfigMount?.source === "vault_agent_config",
+  "Vault Agent must mount its repository-independent inline Compose config.",
+);
+
 const tokenVolume = compose.volumes?.vault_agent_token;
 assert(
   tokenVolume?.driver === "local" &&
@@ -170,7 +197,11 @@ assert(
   "The API must wait for Vault Agent to write its initial token.",
 );
 
-const agentConfig = readFileSync("vault-agent.hcl", "utf8");
+const agentConfig = compose.configs?.vault_agent_config?.content;
+assert(
+  typeof agentConfig === "string" && agentConfig.length > 0,
+  "The inline Vault Agent configuration must not be empty.",
+);
 for (const requiredSetting of [
   /type\s*=\s*"approle"/,
   /role_id_file_path\s*=\s*"\/run\/secrets\/vault_role_id"/,
