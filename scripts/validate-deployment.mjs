@@ -60,7 +60,7 @@ const defaultServices = execFileSync(
 
 assert(
   JSON.stringify(defaultServices) ===
-    JSON.stringify(["api", "clamav", "vault-agent"]),
+    JSON.stringify(["api", "clamav", "vault-agent", "vault-token-init"]),
   `Default deployment must contain only API dependencies; found: ${defaultServices.join(",")}`,
 );
 
@@ -71,6 +71,7 @@ const serviceNames = [
   "clamav",
   "migration",
   "vault-agent",
+  "vault-token-init",
 ];
 const releaseServices = ["api", "frontends"];
 const hardenedServices = [
@@ -79,8 +80,15 @@ const hardenedServices = [
   "platform",
   "migration",
   "vault-agent",
+  "vault-token-init",
 ];
-const readOnlyServices = ["api", "web", "platform", "migration"];
+const readOnlyServices = [
+  "api",
+  "web",
+  "platform",
+  "migration",
+  "vault-token-init",
+];
 
 for (const serviceName of serviceNames) {
   assert(
@@ -120,6 +128,17 @@ assert(
 );
 
 const vaultAgent = compose.services["vault-agent"];
+const vaultTokenInit = compose.services["vault-token-init"];
+assert(
+  vaultTokenInit.user === "0:0" &&
+    vaultTokenInit.cap_add?.includes("CHOWN"),
+  "The token-volume initializer must have only the ownership capability it needs.",
+);
+assert(
+  vaultAgent.depends_on?.["vault-token-init"]?.condition ===
+    "service_completed_successfully",
+  "Vault Agent must wait for token-volume ownership initialization.",
+);
 assert(
   vaultAgent.user === "10001:10001",
   "Vault Agent must share the API image's unprivileged UID and GID.",
