@@ -215,7 +215,7 @@ services:
         volume:
           nocopy: true
     expose:
-      - "8080"
+      - "3000"
     depends_on:
       vault-agent:
         condition: service_healthy
@@ -250,7 +250,7 @@ services:
       - /config:size=16m,noexec,nosuid
       - /data:size=16m,noexec,nosuid
     expose:
-      - "3000"
+      - "8080"
     depends_on:
       api:
         condition: service_healthy
