@@ -144,6 +144,7 @@ services:
     security_opt:
       - no-new-privileges:true
     logging: *default-logging
+
   migration:
     image: "regi.mohsenamani.com/arz-neshan/api:sha-5c4a0b43d09e87341132a29b29173ae1d5a279f9"
     profiles: [migration]
@@ -160,6 +161,7 @@ services:
     cap_drop:
       - ALL
     logging: *default-logging
+
   api:
     image: "regi.mohsenamani.com/arz-neshan/api:sha-5c4a0b43d09e87341132a29b29173ae1d5a279f9"
     pull_policy: always
@@ -185,6 +187,8 @@ services:
         condition: service_healthy
       clamav:
         condition: service_healthy
+      migration:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health/ready').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
       interval: 30s
@@ -196,6 +200,7 @@ services:
     cap_drop:
       - ALL
     logging: *default-logging
+
   web:
     profiles: [frontends]
     image: "regi.mohsenamani.com/arz-neshan/web:sha-f5f78145f9586b04288eba9a349dc1fc411a5da2"
@@ -224,6 +229,7 @@ services:
     cap_drop:
       - ALL
     logging: *default-logging
+
   platform:
     profiles: [frontends]
     image: "regi.mohsenamani.com/arz-neshan/platform:sha-f5f78145f9586b04288eba9a349dc1fc411a5da2"
