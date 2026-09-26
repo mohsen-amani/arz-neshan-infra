@@ -179,7 +179,6 @@ services:
 
   migration:
     image: "regi.mohsenamani.com/arz-neshan/api:sha-5c4a0b43d09e87341132a29b29173ae1d5a279f9"
-    profiles: [migration]
     pull_policy: always
     restart: "no"
     init: true
