@@ -148,6 +148,14 @@ assert(
   "Vault Agent must receive both AppRole credential files.",
 );
 
+const agentConfigMount = vaultAgent.configs?.find(
+  (config) => config.target === "/vault/config/agent.hcl",
+);
+assert(
+  agentConfigMount?.source === "vault_agent_config",
+  "Vault Agent must mount its repository-independent inline Compose config.",
+);
+
 const tokenVolume = compose.volumes?.vault_agent_token;
 assert(
   tokenVolume?.driver === "local" &&
@@ -170,7 +178,11 @@ assert(
   "The API must wait for Vault Agent to write its initial token.",
 );
 
-const agentConfig = readFileSync("vault-agent.hcl", "utf8");
+const agentConfig = compose.configs?.vault_agent_config?.content;
+assert(
+  typeof agentConfig === "string" && agentConfig.length > 0,
+  "The inline Vault Agent configuration must not be empty.",
+);
 for (const requiredSetting of [
   /type\s*=\s*"approle"/,
   /role_id_file_path\s*=\s*"\/run\/secrets\/vault_role_id"/,
