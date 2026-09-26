@@ -166,6 +166,10 @@ mounts that volume read-only and reads the current value through
 `VAULT_TOKEN_FILE` on every Transit operation. The API waits for the agent's
 token-file health check before starting.
 
+The Agent HCL is embedded as a Compose `config`. Keep it inline: Coolify's
+processed deployment directory contains the Compose model but does not reliably
+copy auxiliary repository files referenced by relative bind mounts.
+
 The Vault Agent container deliberately does not use a read-only root filesystem.
 Docker Compose must materialize its environment-backed AppRole secrets as files.
 The service still runs as the API's unprivileged UID, drops all Linux
