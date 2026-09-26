@@ -33,6 +33,12 @@ const composeOutput = execFileSync(
 
 const compose = JSON.parse(composeOutput);
 const releaseState = JSON.parse(readFileSync("release-state.json", "utf8"));
+const rawCompose = readFileSync("compose.coolify.yml", "utf8");
+
+assert(
+  !rawCompose.includes("!!merge"),
+  "Compose must not contain explicit YAML merge tags; Coolify's parser does not handle them reliably.",
+);
 
 const defaultServices = execFileSync(
   "docker",
@@ -106,8 +112,10 @@ assert(
   "The API must read its renewable Vault token from the Agent sink file.",
 );
 assert(
-  !("VAULT_TOKEN" in apiEnvironment),
-  "The API must not receive a static Vault token through its environment.",
+  !["VAULT_TOKEN", "VAULT_ROLE_ID", "VAULT_SECRET_ID"].some(
+    (key) => key in apiEnvironment,
+  ),
+  "The API must not receive static Vault tokens or Vault Agent AppRole credentials.",
 );
 
 const vaultAgent = compose.services["vault-agent"];

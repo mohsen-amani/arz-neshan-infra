@@ -155,6 +155,10 @@ VAULT_ROLE_ID=<AppRole role ID>
 VAULT_SECRET_ID=<AppRole secret ID>
 ```
 
+Keep these as runtime-only variables. Disable Coolify's **Use Build Secrets**
+setting for this application: every service pulls a prebuilt image, so there is
+no application build stage that should receive deployment credentials.
+
 Do not define `VAULT_TOKEN`. Compose exposes the AppRole credential values only
 to `vault-agent` as secret files. The agent authenticates, renews its periodic
 token, and writes it to the memory-backed `vault_agent_token` volume. The API
