@@ -267,6 +267,8 @@ services:
       - no-new-privileges:true
     cap_drop:
       - ALL
+    cap_add:
+      - NET_BIND_SERVICE
     logging: *default-logging
 
   platform:
@@ -294,6 +296,8 @@ services:
       - no-new-privileges:true
     cap_drop:
       - ALL
+    cap_add:
+      - NET_BIND_SERVICE
     logging: *default-logging
 volumes:
   attachments_data:
