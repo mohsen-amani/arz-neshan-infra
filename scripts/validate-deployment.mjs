@@ -74,6 +74,7 @@ const hardenedServices = [
   "migration",
   "vault-agent",
 ];
+const readOnlyServices = ["api", "web", "platform", "migration"];
 
 for (const serviceName of serviceNames) {
   assert(
@@ -197,16 +198,19 @@ for (const [serviceName, service] of Object.entries(compose.services)) {
 for (const serviceName of hardenedServices) {
   const service = compose.services[serviceName];
   assert(
-    service.read_only === true,
-    `${serviceName} must have a read-only root filesystem.`,
-  );
-  assert(
     service.cap_drop?.includes("ALL"),
     `${serviceName} must drop all Linux capabilities.`,
   );
   assert(
     service.security_opt?.includes("no-new-privileges:true"),
     `${serviceName} must enable no-new-privileges.`,
+  );
+}
+
+for (const serviceName of readOnlyServices) {
+  assert(
+    compose.services[serviceName].read_only === true,
+    `${serviceName} must have a read-only root filesystem.`,
   );
 }
 

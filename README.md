@@ -162,6 +162,11 @@ mounts that volume read-only and reads the current value through
 `VAULT_TOKEN_FILE` on every Transit operation. The API waits for the agent's
 token-file health check before starting.
 
+The Vault Agent container deliberately does not use a read-only root filesystem.
+Docker Compose must materialize its environment-backed AppRole secrets as files.
+The service still runs as the API's unprivileged UID, drops all Linux
+capabilities, enables `no-new-privileges`, and has no public port.
+
 `VAULT_AGENT_IMAGE` must remain pinned to an explicit reviewed version. The
 example value is not an instruction to upgrade the independently deployed Vault
 server without following Vault's upgrade guidance.
