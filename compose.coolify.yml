@@ -215,7 +215,7 @@ services:
         volume:
           nocopy: true
     expose:
-      - "3000"
+      - "8080"
     depends_on:
       vault-agent:
         condition: service_healthy
@@ -239,7 +239,6 @@ services:
     logging: *default-logging
 
   web:
-    profiles: [frontends]
     image: "regi.mohsenamani.com/arz-neshan/web:sha-f5f78145f9586b04288eba9a349dc1fc411a5da2"
     pull_policy: always
     restart: unless-stopped
@@ -268,7 +267,6 @@ services:
     logging: *default-logging
 
   platform:
-    profiles: [frontends]
     image: "regi.mohsenamani.com/arz-neshan/platform:sha-f5f78145f9586b04288eba9a349dc1fc411a5da2"
     pull_policy: always
     init: true
